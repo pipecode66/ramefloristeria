@@ -6,11 +6,18 @@ import { Gallery } from "./components/Gallery";
 import { Contact } from "./components/Contact";
 import { Footer } from "./components/Footer";
 import { AdminPanel } from "./components/AdminPanel";
+import { AdminLogin } from "./components/AdminLogin";
 import type { Arrangement } from "./components/data/arrangements";
 import {
   getProductsFromStorage,
   persistProductsToStorage,
 } from "./components/data/productsStore";
+import {
+  type HeroContent,
+  getHeroContentFromStorage,
+  persistHeroContentToStorage,
+} from "./components/data/heroStore";
+import { getAdminSession, setAdminSession } from "./components/data/adminAuth";
 
 const isAdminPath = () => {
   if (typeof window === "undefined") return false;
@@ -24,7 +31,14 @@ export default function App() {
   const [products, setProducts] = useState<Arrangement[]>(() =>
     getProductsFromStorage()
   );
+  const [heroContent, setHeroContent] = useState<HeroContent>(() =>
+    getHeroContentFromStorage()
+  );
   const [isAdminView, setIsAdminView] = useState<boolean>(() => isAdminPath());
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() =>
+    getAdminSession()
+  );
+
   const heroRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
@@ -33,6 +47,10 @@ export default function App() {
   useEffect(() => {
     persistProductsToStorage(products);
   }, [products]);
+
+  useEffect(() => {
+    persistHeroContentToStorage(heroContent);
+  }, [heroContent]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -50,9 +68,15 @@ export default function App() {
   const scrollToSection = (section: string) => {
     if (section === "hero") {
       heroRef.current?.scrollIntoView({ behavior: "smooth" });
-    } else if (section === "gallery") {
+      return;
+    }
+
+    if (section === "gallery") {
       galleryRef.current?.scrollIntoView({ behavior: "smooth" });
-    } else if (section === "contact") {
+      return;
+    }
+
+    if (section === "contact") {
       contactRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   };
@@ -62,8 +86,40 @@ export default function App() {
     galleryRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const handleAdminLoginSuccess = () => {
+    setAdminSession(true);
+    setIsAdminAuthenticated(true);
+  };
+
+  const handleAdminLogout = () => {
+    setAdminSession(false);
+    setIsAdminAuthenticated(false);
+    if (typeof window !== "undefined") {
+      window.location.hash = "";
+    }
+  };
+
+  const exitAdminView = () => {
+    if (typeof window !== "undefined") {
+      window.location.hash = "";
+    }
+    setIsAdminView(false);
+  };
+
+  if (isAdminView && !isAdminAuthenticated) {
+    return <AdminLogin onSuccess={handleAdminLoginSuccess} onBack={exitAdminView} />;
+  }
+
   if (isAdminView) {
-    return <AdminPanel products={products} onProductsChange={setProducts} />;
+    return (
+      <AdminPanel
+        products={products}
+        onProductsChange={setProducts}
+        heroContent={heroContent}
+        onHeroContentChange={setHeroContent}
+        onLogout={handleAdminLogout}
+      />
+    );
   }
 
   return (
@@ -77,7 +133,10 @@ export default function App() {
       <Header onNavClick={scrollToSection} />
 
       <div ref={heroRef}>
-        <Hero onScrollToGallery={() => scrollToSection("gallery")} />
+        <Hero
+          onScrollToGallery={() => scrollToSection("gallery")}
+          content={heroContent}
+        />
       </div>
 
       <SearchFilters onFilter={handleFilter} />

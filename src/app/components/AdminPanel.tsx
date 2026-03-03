@@ -1,6 +1,14 @@
-import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ArrowLeft,
+  ImagePlus,
+  LogOut,
   MessageCircle,
   Pencil,
   Save,
@@ -9,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { Arrangement } from "./data/arrangements";
+import type { HeroContent } from "./data/heroStore";
 import {
   arrangementFromAdminInput,
   getProductCategory,
@@ -18,6 +27,9 @@ import { createProductWhatsAppLink } from "./data/whatsapp";
 interface AdminPanelProps {
   products: Arrangement[];
   onProductsChange: (products: Arrangement[]) => void;
+  heroContent: HeroContent;
+  onHeroContentChange: (content: HeroContent) => void;
+  onLogout: () => void;
 }
 
 interface ProductFormState {
@@ -27,6 +39,11 @@ interface ProductFormState {
   price: string;
   image: string;
 }
+
+type BannerMessage = {
+  type: "success" | "error";
+  text: string;
+} | null;
 
 const EMPTY_FORM: ProductFormState = {
   name: "",
@@ -43,15 +60,75 @@ const formatPrice = (price: number) =>
     minimumFractionDigits: 0,
   }).format(price);
 
-export function AdminPanel({ products, onProductsChange }: AdminPanelProps) {
+export function AdminPanel({
+  products,
+  onProductsChange,
+  heroContent,
+  onHeroContentChange,
+  onLogout,
+}: AdminPanelProps) {
+  const [heroForm, setHeroForm] = useState<HeroContent>(heroContent);
+  const [bannerMessage, setBannerMessage] = useState<BannerMessage>(null);
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    setHeroForm(heroContent);
+  }, [heroContent]);
 
   const sortedProducts = useMemo(
     () => [...products].sort((a, b) => b.id - a.id),
     [products]
   );
+
+  const updateHeroField = (key: keyof HeroContent, value: string) => {
+    setHeroForm((prev) => ({ ...prev, [key]: value }));
+    if (bannerMessage) setBannerMessage(null);
+  };
+
+  const handleHeroImageUpload =
+    (key: "mainImage" | "accentImage") =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          updateHeroField(key, reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+      event.target.value = "";
+    };
+
+  const handleSaveHero = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalized: HeroContent = {
+      monthLabel: heroForm.monthLabel.trim(),
+      titleLineOne: heroForm.titleLineOne.trim(),
+      titleLineTwo: heroForm.titleLineTwo.trim(),
+      subtitle: heroForm.subtitle.trim(),
+      subtitleHighlight: heroForm.subtitleHighlight.trim(),
+      mainImage: heroForm.mainImage.trim(),
+      accentImage: heroForm.accentImage.trim(),
+      badgeTitle: heroForm.badgeTitle.trim(),
+      badgeSubtitle: heroForm.badgeSubtitle.trim(),
+    };
+
+    if (!normalized.mainImage || !normalized.accentImage) {
+      setBannerMessage({
+        type: "error",
+        text: "El banner principal y la imagen secundaria son obligatorios.",
+      });
+      return;
+    }
+
+    onHeroContentChange(normalized);
+    setBannerMessage({ type: "success", text: "Banner principal actualizado." });
+  };
 
   const updateField = (key: keyof ProductFormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -147,6 +224,14 @@ export function AdminPanel({ products, onProductsChange }: AdminPanelProps) {
     }
   };
 
+  const goBackToSite = () => {
+    if (window.location.hash.toLowerCase().includes("admin")) {
+      window.location.hash = "";
+      return;
+    }
+    window.location.href = "/";
+  };
+
   return (
     <div
       style={{
@@ -181,30 +266,41 @@ export function AdminPanel({ products, onProductsChange }: AdminPanelProps) {
                 lineHeight: 1.1,
               }}
             >
-              Panel de productos
+              Panel de productos y banner
             </h1>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (window.location.hash.toLowerCase().includes("admin")) {
-                window.location.hash = "";
-              } else {
-                window.location.href = "/";
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl"
-            style={{
-              backgroundColor: "#4a6741",
-              color: "#fdf6f0",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            <ArrowLeft size={16} />
-            Volver al sitio
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={goBackToSite}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl"
+              style={{
+                backgroundColor: "#4a6741",
+                color: "#fdf6f0",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <ArrowLeft size={16} />
+              Volver al sitio
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl"
+              style={{
+                backgroundColor: "#f0ebe4",
+                color: "#5a4a3a",
+                border: "1px solid #d9c9bc",
+                cursor: "pointer",
+              }}
+            >
+              <LogOut size={16} />
+              Cerrar sesion
+            </button>
+          </div>
         </div>
       </header>
 
@@ -217,6 +313,180 @@ export function AdminPanel({ products, onProductsChange }: AdminPanelProps) {
             boxShadow: "0 10px 30px rgba(58,46,38,0.08)",
           }}
         >
+          <div className="mb-8">
+            <h2
+              style={{
+                fontFamily: "'Playfair Display', serif",
+                fontSize: "24px",
+                color: "#3a2e26",
+              }}
+            >
+              Editor del banner principal
+            </h2>
+            <p
+              style={{
+                fontFamily: "'Lato', sans-serif",
+                fontSize: "13px",
+                color: "#9e7b5a",
+                marginTop: "4px",
+              }}
+            >
+              Modifica la seccion del inicio donde aparece "Mes de la Mujer" y
+              sube nuevas imagenes.
+            </p>
+
+            <form className="mt-4 flex flex-col gap-3" onSubmit={handleSaveHero}>
+              <label className="flex flex-col gap-1.5">
+                <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                  Etiqueta superior
+                </span>
+                <input
+                  type="text"
+                  value={heroForm.monthLabel}
+                  onChange={(event) => updateHeroField("monthLabel", event.target.value)}
+                  className="rounded-xl px-4 py-2.5 outline-none"
+                  style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fdf9f6" }}
+                />
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1.5">
+                  <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                    Titulo linea 1
+                  </span>
+                  <input
+                    type="text"
+                    value={heroForm.titleLineOne}
+                    onChange={(event) =>
+                      updateHeroField("titleLineOne", event.target.value)
+                    }
+                    className="rounded-xl px-4 py-2.5 outline-none"
+                    style={{
+                      border: "1.5px solid #e8d5c4",
+                      backgroundColor: "#fdf9f6",
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                    Titulo linea 2
+                  </span>
+                  <input
+                    type="text"
+                    value={heroForm.titleLineTwo}
+                    onChange={(event) =>
+                      updateHeroField("titleLineTwo", event.target.value)
+                    }
+                    className="rounded-xl px-4 py-2.5 outline-none"
+                    style={{
+                      border: "1.5px solid #e8d5c4",
+                      backgroundColor: "#fdf9f6",
+                    }}
+                  />
+                </label>
+              </div>
+
+              <label className="flex flex-col gap-1.5">
+                <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                  Imagen principal del banner
+                </span>
+                <input
+                  type="url"
+                  value={heroForm.mainImage}
+                  onChange={(event) => updateHeroField("mainImage", event.target.value)}
+                  className="rounded-xl px-4 py-2.5 outline-none"
+                  style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fdf9f6" }}
+                />
+                <label
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl cursor-pointer w-fit"
+                  style={{
+                    backgroundColor: "#f0ebe4",
+                    color: "#4a6741",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                  }}
+                >
+                  <ImagePlus size={14} />
+                  Subir imagen principal
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleHeroImageUpload("mainImage")}
+                    className="hidden"
+                  />
+                </label>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                  Imagen secundaria del banner
+                </span>
+                <input
+                  type="url"
+                  value={heroForm.accentImage}
+                  onChange={(event) => updateHeroField("accentImage", event.target.value)}
+                  className="rounded-xl px-4 py-2.5 outline-none"
+                  style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fdf9f6" }}
+                />
+                <label
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl cursor-pointer w-fit"
+                  style={{
+                    backgroundColor: "#f0ebe4",
+                    color: "#4a6741",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                  }}
+                >
+                  <ImagePlus size={14} />
+                  Subir imagen secundaria
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleHeroImageUpload("accentImage")}
+                    className="hidden"
+                  />
+                </label>
+              </label>
+
+              {bannerMessage && (
+                <p
+                  className="px-3 py-2 rounded-xl"
+                  style={{
+                    backgroundColor:
+                      bannerMessage.type === "success" ? "#eaf4e5" : "#fbe4dc",
+                    color: bannerMessage.type === "success" ? "#2e5c22" : "#8a3d2c",
+                    fontSize: "13px",
+                  }}
+                >
+                  {bannerMessage.text}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl"
+                style={{
+                  backgroundColor: "#4a6741",
+                  color: "#fdf6f0",
+                  border: "none",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <Save size={15} />
+                Guardar banner
+              </button>
+            </form>
+          </div>
+
+          <div
+            className="mb-7"
+            style={{
+              height: "1px",
+              background: "linear-gradient(to right, #e8d5c4, transparent)",
+            }}
+          />
+
           <div className="mb-5">
             <h2
               style={{

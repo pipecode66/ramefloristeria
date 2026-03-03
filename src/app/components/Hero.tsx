@@ -1,12 +1,17 @@
 import { MessageCircle, ChevronDown } from "lucide-react";
-
-const WA_LINK = `https://wa.me/573224238092?text=Hola%2C%20quiero%20ver%20los%20arreglos%20del%20Mes%20de%20la%20Mujer%20%F0%9F%8C%B8`;
+import type { HeroContent } from "./data/heroStore";
+import { createGeneralWhatsAppLink } from "./data/whatsapp";
 
 interface HeroProps {
   onScrollToGallery: () => void;
+  content: HeroContent;
 }
 
-export function Hero({ onScrollToGallery }: HeroProps) {
+export function Hero({ onScrollToGallery, content }: HeroProps) {
+  const waLink = createGeneralWhatsAppLink(
+    "Hola, quiero ver los arreglos destacados del banner principal."
+  );
+
   return (
     <section
       className="relative min-h-screen flex items-center overflow-hidden"
@@ -15,7 +20,6 @@ export function Hero({ onScrollToGallery }: HeroProps) {
           "linear-gradient(135deg, #fdf0e8 0%, #fae6d9 35%, #f5ddd0 60%, #ecd9cc 100%)",
       }}
     >
-      {/* Decorative leaf shapes */}
       <div
         className="absolute top-0 right-0 w-[500px] h-[500px] opacity-10 pointer-events-none"
         style={{
@@ -31,21 +35,20 @@ export function Hero({ onScrollToGallery }: HeroProps) {
         }}
       />
 
-      {/* Floating decorative dots */}
       {[
         { top: "15%", left: "8%", size: 6 },
         { top: "70%", left: "5%", size: 4 },
         { top: "30%", right: "12%", size: 5 },
         { top: "80%", right: "8%", size: 7 },
         { top: "50%", left: "15%", size: 3 },
-      ].map((dot, i) => (
+      ].map((dot, index) => (
         <div
-          key={i}
+          key={index}
           className="absolute rounded-full"
           style={{
             top: dot.top,
-            left: (dot as any).left,
-            right: (dot as any).right,
+            left: (dot as { left?: string }).left,
+            right: (dot as { right?: string }).right,
             width: dot.size,
             height: dot.size,
             backgroundColor: "#c9a96e",
@@ -54,7 +57,6 @@ export function Hero({ onScrollToGallery }: HeroProps) {
         />
       ))}
 
-      {/* Leaf SVG decorations */}
       <svg
         className="absolute top-16 right-[8%] opacity-20 pointer-events-none"
         width="120"
@@ -93,7 +95,6 @@ export function Hero({ onScrollToGallery }: HeroProps) {
         <line x1="40" y1="45" x2="12" y2="42" stroke="#fdf6f0" strokeWidth="0.8" />
       </svg>
 
-      {/* Golden line divider accent */}
       <div
         className="absolute top-0 left-0 w-full h-[2px]"
         style={{
@@ -104,14 +105,9 @@ export function Hero({ onScrollToGallery }: HeroProps) {
       />
 
       <div className="relative max-w-7xl mx-auto px-6 py-20 flex flex-col lg:flex-row items-center gap-16 w-full">
-        {/* Left: Text content */}
         <div className="flex-1 flex flex-col items-start">
-          {/* Tag line */}
           <div className="flex items-center gap-3 mb-6">
-            <div
-              className="w-12 h-[1px]"
-              style={{ backgroundColor: "#c9a96e" }}
-            />
+            <div className="w-12 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
             <span
               style={{
                 fontFamily: "'Lato', sans-serif",
@@ -122,11 +118,10 @@ export function Hero({ onScrollToGallery }: HeroProps) {
                 textTransform: "uppercase",
               }}
             >
-              Marzo 2026
+              {content.monthLabel}
             </span>
           </div>
 
-          {/* Main headline */}
           <h1
             style={{
               fontFamily: "'Playfair Display', serif",
@@ -137,7 +132,7 @@ export function Hero({ onScrollToGallery }: HeroProps) {
               marginBottom: "8px",
             }}
           >
-            Mes de la
+            {content.titleLineOne}
           </h1>
           <h1
             style={{
@@ -145,26 +140,23 @@ export function Hero({ onScrollToGallery }: HeroProps) {
               fontSize: "clamp(48px, 7vw, 90px)",
               fontWeight: 700,
               color: "#4a6741",
-              lineHeight: 1.0,
+              lineHeight: 1,
               marginBottom: "24px",
               fontStyle: "italic",
             }}
           >
-            Mujer
+            {content.titleLineTwo}
           </h1>
 
-          {/* Gold underline */}
           <div
             className="mb-8"
             style={{
               width: "80px",
               height: "2px",
-              background:
-                "linear-gradient(to right, #c9a96e, #e8c87a)",
+              background: "linear-gradient(to right, #c9a96e, #e8c87a)",
             }}
           />
 
-          {/* Subtitle */}
           <p
             style={{
               fontFamily: "'Lato', sans-serif",
@@ -176,14 +168,13 @@ export function Hero({ onScrollToGallery }: HeroProps) {
               marginBottom: "40px",
             }}
           >
-            Arreglos florales con pasión, amor y elegancia.
+            {content.subtitle}
             <br />
             <span style={{ color: "#9e7b5a", fontSize: "0.9em" }}>
-              Cada flor, una historia. Cada bouquet, un abrazo.
+              {content.subtitleHighlight}
             </span>
           </p>
 
-          {/* CTA buttons */}
           <div className="flex flex-wrap items-center gap-4">
             <button
               onClick={onScrollToGallery}
@@ -202,7 +193,7 @@ export function Hero({ onScrollToGallery }: HeroProps) {
               Ver arreglos
             </button>
             <a
-              href={WA_LINK}
+              href={waLink}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-8 py-3.5 rounded-full transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
@@ -223,14 +214,13 @@ export function Hero({ onScrollToGallery }: HeroProps) {
             </a>
           </div>
 
-          {/* Stats */}
           <div className="flex items-center gap-10 mt-14">
             {[
               { value: "+500", label: "Arreglos entregados" },
               { value: "100%", label: "Flores frescas" },
-              { value: "+8", label: "Años de experiencia" },
-            ].map((stat, i) => (
-              <div key={i} className="flex flex-col">
+              { value: "+8", label: "Anos de experiencia" },
+            ].map((stat, index) => (
+              <div key={index} className="flex flex-col">
                 <span
                   style={{
                     fontFamily: "'Playfair Display', serif",
@@ -257,17 +247,15 @@ export function Hero({ onScrollToGallery }: HeroProps) {
           </div>
         </div>
 
-        {/* Right: Hero image mosaic */}
         <div className="flex-1 flex items-center justify-center relative w-full max-w-[520px]">
           <div className="relative w-full" style={{ aspectRatio: "0.85" }}>
-            {/* Main large image */}
             <div
               className="absolute inset-0 rounded-[32px] overflow-hidden shadow-2xl"
               style={{ top: "5%", left: "5%", right: "5%", bottom: "5%" }}
             >
               <img
-                src="https://images.unsplash.com/photo-1771134572111-967700a8bb31?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyb21hbnRpYyUyMHJvc2UlMjBib3VxdWV0JTIwcGluayUyMGZsb3dlcnMlMjBlbGVnYW50fGVufDF8fHx8MTc3MjU0NzQwNXww&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="Arreglo floral RAMÉ"
+                src={content.mainImage}
+                alt="Arreglo floral RAME"
                 className="w-full h-full object-cover"
               />
               <div
@@ -279,7 +267,6 @@ export function Hero({ onScrollToGallery }: HeroProps) {
               />
             </div>
 
-            {/* Floating badge */}
             <div
               className="absolute bottom-[8%] left-0 rounded-2xl p-4 shadow-xl"
               style={{
@@ -296,7 +283,7 @@ export function Hero({ onScrollToGallery }: HeroProps) {
                   color: "#3a2e26",
                 }}
               >
-                🌸 Arreglo especial
+                {content.badgeTitle}
               </div>
               <div
                 style={{
@@ -306,18 +293,17 @@ export function Hero({ onScrollToGallery }: HeroProps) {
                   marginTop: "2px",
                 }}
               >
-                Mes de la Mujer
+                {content.badgeSubtitle}
               </div>
             </div>
 
-            {/* Top right accent image */}
             <div
               className="absolute top-0 right-0 w-[44%] h-[44%] rounded-2xl overflow-hidden shadow-lg"
               style={{ zIndex: 10 }}
             >
               <img
-                src="https://images.unsplash.com/photo-1510826079925-c32e6673a0bb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwaW5rJTIwcGVvbnklMjBmbG9yYWwlMjBib3VxdWV0JTIwZWxlZ2FudCUyMGJyaWRhbHxlbnwxfHx8fDE3NzI1NDc0MDl8MA&ixlib=rb-4.1.0&q=80&w=400"
-                alt="Bouquet peonías"
+                src={content.accentImage}
+                alt="Detalle arreglo"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -325,7 +311,6 @@ export function Hero({ onScrollToGallery }: HeroProps) {
         </div>
       </div>
 
-      {/* Scroll indicator */}
       <button
         onClick={onScrollToGallery}
         className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"

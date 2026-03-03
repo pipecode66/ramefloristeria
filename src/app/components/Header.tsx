@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Menu, X, MessageCircle } from "lucide-react";
-import logoImg from "../../assets/a24ef7028bf8b5179ddb28e37f76423b7bff51cc.png";
+import { Menu, X, MessageCircle, LogIn } from "lucide-react";
+import logoImg from "../../assets/rame-logo-transparent.png";
 import { createGeneralWhatsAppLink } from "./data/whatsapp";
 
 interface HeaderProps {
@@ -22,19 +22,27 @@ export function Header({ onNavClick }: HeaderProps) {
       className="sticky top-0 z-50 w-full"
       style={{ backgroundColor: "#fdf6f0", borderBottom: "1px solid #e8d5c4" }}
     >
-      <div className="max-w-7xl mx-auto px-6 py-3 flex items-center">
-        <div
+      <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center">
+        <button
+          type="button"
           className="flex items-center gap-3 cursor-pointer"
           onClick={() => onNavClick("hero")}
+          style={{ background: "none", border: "none", padding: 0 }}
+          aria-label="Ir al inicio"
         >
           <img
             src={logoImg}
             alt="RAME Floristeria y Decoraciones"
-            style={{ height: "76px", width: "auto", objectFit: "contain" }}
+            style={{
+              height: "94px",
+              width: "auto",
+              objectFit: "contain",
+              backgroundColor: "transparent",
+            }}
           />
-        </div>
+        </button>
 
-        <div className="hidden md:flex items-center ml-auto gap-8">
+        <div className="hidden md:flex items-center ml-auto gap-5">
           <nav className="flex items-center gap-7 mr-2">
             {navLinks.map((link) => (
               <button
@@ -89,6 +97,20 @@ export function Header({ onNavClick }: HeaderProps) {
             <MessageCircle size={15} />
             Pedir por WhatsApp
           </a>
+
+          <a
+            href="#admin"
+            className="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 hover:opacity-90 hover:shadow-md"
+            style={{
+              backgroundColor: "#f0ebe4",
+              color: "#4a6741",
+              border: "1px solid #d9c9bc",
+            }}
+            aria-label="Ingresar al panel administrativo"
+            title="Panel administrativo"
+          >
+            <LogIn size={18} />
+          </a>
         </div>
 
         <button
@@ -127,6 +149,7 @@ export function Header({ onNavClick }: HeaderProps) {
               {link.label}
             </button>
           ))}
+
           <a
             href={waLink}
             target="_blank"
@@ -143,6 +166,24 @@ export function Header({ onNavClick }: HeaderProps) {
           >
             <MessageCircle size={16} />
             Pedir por WhatsApp
+          </a>
+
+          <a
+            href="#admin"
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-full"
+            style={{
+              backgroundColor: "#f0ebe4",
+              color: "#4a6741",
+              fontFamily: "'Lato', sans-serif",
+              fontSize: "14px",
+              fontWeight: 700,
+              textDecoration: "none",
+              border: "1px solid #d9c9bc",
+            }}
+          >
+            <LogIn size={16} />
+            Ingresar al panel
           </a>
         </div>
       )}
