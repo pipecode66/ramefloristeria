@@ -10,7 +10,7 @@ interface GalleryProps {
 
 export function Gallery({ searchFilters, products }: GalleryProps) {
   const [selected, setSelected] = useState<Arrangement | null>(null);
-  const [activeTab, setActiveTab] = useState<"featured" | "all">("featured");
+  const [activeTab, setActiveTab] = useState<"featured" | "all">("all");
 
   const applyFilters = (arr: Arrangement[]) => {
     if (!searchFilters) return arr;
