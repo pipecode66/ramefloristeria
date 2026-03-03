@@ -24,11 +24,23 @@ export interface HeroContent {
 }
 
 const STORAGE_KEY = "rame_hero_content_v1";
+const DB_NAME = "rame_storage_v1";
+const DB_STORE = "hero_content";
+const DB_KEY = "main";
 
 interface PersistResult {
   ok: boolean;
   error?: string;
 }
+
+interface HeroStoredPayload {
+  content: HeroContent;
+  updatedAt: number;
+}
+
+type PartialHeroLegacy = Partial<HeroContent> & {
+  mainImage?: unknown;
+};
 
 export const defaultHeroContent: HeroContent = {
   monthLabel: "Marzo 2026",
@@ -79,50 +91,152 @@ const sanitizeButtons = (value: unknown): HeroExtraButton[] => {
     .filter((button): button is HeroExtraButton => Boolean(button));
 };
 
-export const getHeroContentFromStorage = (): HeroContent => {
-  if (typeof window === "undefined") return defaultHeroContent;
+const normalizeHeroContent = (value: unknown): HeroContent => {
+  const parsed = ((value ?? {}) as PartialHeroLegacy) || {};
+
+  return {
+    monthLabel: sanitizeText(parsed.monthLabel, defaultHeroContent.monthLabel),
+    titleLineOne: sanitizeText(parsed.titleLineOne, defaultHeroContent.titleLineOne),
+    titleLineTwo: sanitizeText(parsed.titleLineTwo, defaultHeroContent.titleLineTwo),
+    subtitle: sanitizeText(parsed.subtitle, defaultHeroContent.subtitle),
+    subtitleHighlight: sanitizeText(
+      parsed.subtitleHighlight,
+      defaultHeroContent.subtitleHighlight
+    ),
+    bannerImage: sanitizeText(
+      parsed.bannerImage ?? parsed.mainImage,
+      defaultHeroContent.bannerImage
+    ),
+    showGalleryButton: sanitizeBoolean(
+      parsed.showGalleryButton,
+      defaultHeroContent.showGalleryButton
+    ),
+    galleryButtonLabel: sanitizeText(
+      parsed.galleryButtonLabel,
+      defaultHeroContent.galleryButtonLabel
+    ),
+    showWhatsAppButton: sanitizeBoolean(
+      parsed.showWhatsAppButton,
+      defaultHeroContent.showWhatsAppButton
+    ),
+    whatsAppButtonLabel: sanitizeText(
+      parsed.whatsAppButtonLabel,
+      defaultHeroContent.whatsAppButtonLabel
+    ),
+    extraButtons: sanitizeButtons(parsed.extraButtons),
+  };
+};
+
+const parsePayload = (raw: unknown): HeroStoredPayload | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const parsed = raw as Record<string, unknown>;
+
+  if ("content" in parsed) {
+    return {
+      content: normalizeHeroContent(parsed.content),
+      updatedAt:
+        typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt)
+          ? parsed.updatedAt
+          : 0,
+    };
+  }
+
+  return {
+    content: normalizeHeroContent(parsed),
+    updatedAt: 0,
+  };
+};
+
+const readLocalPayload = (): HeroStoredPayload | null => {
+  if (typeof window === "undefined") return null;
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return defaultHeroContent;
+  if (!raw) return null;
 
   try {
-    const parsed = JSON.parse(raw) as Partial<HeroContent> & {
-      mainImage?: string;
-    };
-    return {
-      monthLabel: sanitizeText(parsed.monthLabel, defaultHeroContent.monthLabel),
-      titleLineOne: sanitizeText(parsed.titleLineOne, defaultHeroContent.titleLineOne),
-      titleLineTwo: sanitizeText(parsed.titleLineTwo, defaultHeroContent.titleLineTwo),
-      subtitle: sanitizeText(parsed.subtitle, defaultHeroContent.subtitle),
-      subtitleHighlight: sanitizeText(
-        parsed.subtitleHighlight,
-        defaultHeroContent.subtitleHighlight
-      ),
-      bannerImage: sanitizeText(
-        parsed.bannerImage ?? parsed.mainImage,
-        defaultHeroContent.bannerImage
-      ),
-      showGalleryButton: sanitizeBoolean(
-        parsed.showGalleryButton,
-        defaultHeroContent.showGalleryButton
-      ),
-      galleryButtonLabel: sanitizeText(
-        parsed.galleryButtonLabel,
-        defaultHeroContent.galleryButtonLabel
-      ),
-      showWhatsAppButton: sanitizeBoolean(
-        parsed.showWhatsAppButton,
-        defaultHeroContent.showWhatsAppButton
-      ),
-      whatsAppButtonLabel: sanitizeText(
-        parsed.whatsAppButtonLabel,
-        defaultHeroContent.whatsAppButtonLabel
-      ),
-      extraButtons: sanitizeButtons(parsed.extraButtons),
-    };
+    return parsePayload(JSON.parse(raw));
   } catch {
-    return defaultHeroContent;
+    return null;
   }
+};
+
+const supportsIndexedDb = () =>
+  typeof window !== "undefined" && typeof window.indexedDB !== "undefined";
+
+const openDb = () =>
+  new Promise<IDBDatabase>((resolve, reject) => {
+    if (!supportsIndexedDb()) {
+      reject(new Error("IndexedDB no disponible"));
+      return;
+    }
+
+    const request = window.indexedDB.open(DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) {
+        db.createObjectStore(DB_STORE);
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error("No se pudo abrir IndexedDB"));
+  });
+
+const readIndexedDbPayload = async (): Promise<HeroStoredPayload | null> => {
+  if (!supportsIndexedDb()) return null;
+
+  try {
+    const db = await openDb();
+    const payload = await new Promise<HeroStoredPayload | null>((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readonly");
+      const store = tx.objectStore(DB_STORE);
+      const request = store.get(DB_KEY);
+
+      request.onsuccess = () => resolve(parsePayload(request.result));
+      request.onerror = () =>
+        reject(request.error ?? new Error("No se pudo leer el banner"));
+    });
+    db.close();
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
+const writeIndexedDbPayload = async (payload: HeroStoredPayload): Promise<boolean> => {
+  if (!supportsIndexedDb()) return false;
+
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error("No se pudo escribir banner"));
+      tx.objectStore(DB_STORE).put(payload, DB_KEY);
+    });
+    db.close();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const getHeroContentFromStorage = (): HeroContent =>
+  readLocalPayload()?.content ?? defaultHeroContent;
+
+export const getLatestHeroContentFromPersistence = async (): Promise<HeroContent> => {
+  const localPayload = readLocalPayload();
+  const indexedDbPayload = await readIndexedDbPayload();
+
+  if (!localPayload && !indexedDbPayload) return defaultHeroContent;
+  if (!localPayload) return indexedDbPayload?.content ?? defaultHeroContent;
+  if (!indexedDbPayload) return localPayload.content;
+
+  return indexedDbPayload.updatedAt > localPayload.updatedAt
+    ? indexedDbPayload.content
+    : localPayload.content;
 };
 
 const getStorageErrorMessage = (error: unknown) => {
@@ -133,16 +247,36 @@ const getStorageErrorMessage = (error: unknown) => {
   return "No se pudo guardar el banner en este navegador.";
 };
 
-export const persistHeroContentToStorage = (
+export const persistHeroContentToStorage = async (
   content: HeroContent
-): PersistResult => {
+): Promise<PersistResult> => {
   if (typeof window === "undefined") return { ok: true };
 
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: getStorageErrorMessage(error) };
-  }
-};
+  const payload: HeroStoredPayload = {
+    content,
+    updatedAt: Date.now(),
+  };
 
+  let localError: unknown = null;
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    localError = error;
+  }
+
+  const indexedDbSaved = await writeIndexedDbPayload(payload);
+
+  if (!localError) {
+    return { ok: true };
+  }
+
+  if (indexedDbSaved) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    error: getStorageErrorMessage(localError),
+  };
+};

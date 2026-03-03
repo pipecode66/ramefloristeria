@@ -15,6 +15,7 @@ import {
 import {
   type HeroContent,
   getHeroContentFromStorage,
+  getLatestHeroContentFromPersistence,
   persistHeroContentToStorage,
 } from "./components/data/heroStore";
 import { getAdminSession, setAdminSession } from "./components/data/adminAuth";
@@ -57,6 +58,19 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    void getLatestHeroContentFromPersistence().then((latestContent) => {
+      if (!mounted) return;
+      setHeroContent(latestContent);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const scrollToSection = (section: string) => {
     if (section === "hero") {
       heroRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,9 +97,9 @@ export default function App() {
     return persistProductsToStorage(nextProducts);
   };
 
-  const handleHeroContentChange = (nextHeroContent: HeroContent) => {
+  const handleHeroContentChange = async (nextHeroContent: HeroContent) => {
     setHeroContent(nextHeroContent);
-    return persistHeroContentToStorage(nextHeroContent);
+    return await persistHeroContentToStorage(nextHeroContent);
   };
 
   const handleAdminLoginSuccess = () => {

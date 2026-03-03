@@ -40,7 +40,7 @@ interface AdminPanelProps {
   heroContent: HeroContent;
   onHeroContentChange: (
     content: HeroContent
-  ) => { ok: boolean; error?: string };
+  ) => Promise<{ ok: boolean; error?: string }>;
   onLogout: () => void;
 }
 
@@ -187,7 +187,7 @@ export function AdminPanel({
     if (bannerMessage) setBannerMessage(null);
   };
 
-  const handleSaveHero = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveHero = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const normalizedButtons = heroForm.extraButtons
@@ -224,7 +224,7 @@ export function AdminPanel({
       return;
     }
 
-    const result = onHeroContentChange(normalized);
+    const result = await onHeroContentChange(normalized);
 
     if (!result.ok) {
       setBannerMessage({
