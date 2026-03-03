@@ -22,7 +22,7 @@ export function Header({ onNavClick }: HeaderProps) {
       className="sticky top-0 z-50 w-full"
       style={{ backgroundColor: "#fdf6f0", borderBottom: "1px solid #e8d5c4" }}
     >
-      <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center">
+      <div className="max-w-[90rem] mx-auto px-4 lg:px-6 py-2.5 flex items-center">
         <button
           type="button"
           className="flex items-center gap-3 cursor-pointer"
@@ -34,16 +34,16 @@ export function Header({ onNavClick }: HeaderProps) {
             src={logoImg}
             alt="RAME Floristeria y Decoraciones"
             style={{
-              width: "210px",
-              height: "58px",
+              width: "120px",
+              height: "33px",
               objectFit: "contain",
               backgroundColor: "transparent",
             }}
           />
         </button>
 
-        <div className="hidden md:flex items-center ml-auto gap-5">
-          <nav className="flex items-center gap-7 mr-2">
+        <div className="hidden md:flex items-center ml-auto w-full justify-end gap-5">
+          <nav className="flex items-center gap-7 mr-4">
             {navLinks.map((link) => (
               <button
                 key={link.label}
