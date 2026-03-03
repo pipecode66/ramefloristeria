@@ -26,6 +26,8 @@ import type {
 import {
   arrangementFromAdminInput,
   getProductCategory,
+  PRODUCT_PRICE_MAX,
+  PRODUCT_PRICE_MIN,
 } from "./data/productsStore";
 import { createProductWhatsAppLink } from "./data/whatsapp";
 import { compressImageFile } from "./data/imageCompression";
@@ -286,8 +288,15 @@ export function AdminPanel({
       return;
     }
 
-    if (!Number.isFinite(price) || price <= 0) {
-      setErrorMessage("El precio debe ser un numero mayor a 0.");
+    if (
+      !Number.isFinite(price) ||
+      !Number.isInteger(price) ||
+      price < PRODUCT_PRICE_MIN ||
+      price > PRODUCT_PRICE_MAX
+    ) {
+      setErrorMessage(
+        `El precio debe ser un numero entero entre ${PRODUCT_PRICE_MIN} y ${PRODUCT_PRICE_MAX}.`
+      );
       return;
     }
 
@@ -963,8 +972,9 @@ export function AdminPanel({
               </span>
               <input
                 type="number"
-                min={1}
-                step={1000}
+                min={PRODUCT_PRICE_MIN}
+                max={PRODUCT_PRICE_MAX}
+                step={1}
                 value={form.price}
                 onChange={(event) => updateField("price", event.target.value)}
                 placeholder="Ej: 120000"

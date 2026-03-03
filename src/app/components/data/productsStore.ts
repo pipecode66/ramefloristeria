@@ -2,6 +2,8 @@ import { arrangements, type Arrangement } from "./arrangements";
 
 const STORAGE_KEY = "rame_products_v1";
 const FALLBACK_IMAGE = arrangements[0]?.images?.[0] ?? "";
+export const PRODUCT_PRICE_MIN = 1;
+export const PRODUCT_PRICE_MAX = 9_999_999_999;
 
 interface PersistResult {
   ok: boolean;
@@ -24,6 +26,9 @@ const toStringArray = (value: unknown, fallback: string): string[] => {
   return result.length > 0 ? result : [fallback];
 };
 
+const normalizePrice = (price: number) =>
+  Math.min(PRODUCT_PRICE_MAX, Math.max(PRODUCT_PRICE_MIN, Math.round(price)));
+
 const normalizeProduct = (value: unknown, index: number): Arrangement | null => {
   if (!value || typeof value !== "object") return null;
   const item = value as Partial<Arrangement>;
@@ -39,9 +44,9 @@ const normalizeProduct = (value: unknown, index: number): Arrangement | null => 
     name,
     description: typeof item.description === "string" ? item.description : "",
     price:
-      typeof item.price === "number" && Number.isFinite(item.price) && item.price >= 0
-        ? Math.round(item.price)
-        : 0,
+      typeof item.price === "number" && Number.isFinite(item.price)
+        ? normalizePrice(item.price)
+        : PRODUCT_PRICE_MIN,
     images,
     tags: toStringArray(item.tags, categoryFallback).slice(0, 8),
     flowers: toStringArray(item.flowers, categoryFallback).slice(0, 6),
@@ -78,7 +83,7 @@ export const arrangementFromAdminInput = (
     id: existing?.id ?? nextId,
     name: input.name.trim(),
     description: input.description.trim(),
-    price: Math.max(0, Math.round(input.price)),
+    price: normalizePrice(input.price),
     images: uniqueValues([
       normalizedImage,
       ...(existing?.images ?? []).filter((image) => image !== normalizedImage),
