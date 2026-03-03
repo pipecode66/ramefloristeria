@@ -26,9 +26,13 @@ import { createProductWhatsAppLink } from "./data/whatsapp";
 
 interface AdminPanelProps {
   products: Arrangement[];
-  onProductsChange: (products: Arrangement[]) => void;
+  onProductsChange: (
+    products: Arrangement[]
+  ) => { ok: boolean; error?: string };
   heroContent: HeroContent;
-  onHeroContentChange: (content: HeroContent) => void;
+  onHeroContentChange: (
+    content: HeroContent
+  ) => { ok: boolean; error?: string };
   onLogout: () => void;
 }
 
@@ -126,7 +130,16 @@ export function AdminPanel({
       return;
     }
 
-    onHeroContentChange(normalized);
+    const result = onHeroContentChange(normalized);
+
+    if (!result.ok) {
+      setBannerMessage({
+        type: "error",
+        text: result.error ?? "No se pudo guardar el banner.",
+      });
+      return;
+    }
+
     setBannerMessage({ type: "success", text: "Banner principal actualizado." });
   };
 
@@ -193,7 +206,12 @@ export function AdminPanel({
         )
       : [nextProduct, ...products];
 
-    onProductsChange(nextProducts);
+    const result = onProductsChange(nextProducts);
+    if (!result.ok) {
+      setErrorMessage(result.error ?? "No se pudo guardar el producto.");
+      return;
+    }
+
     resetForm();
   };
 

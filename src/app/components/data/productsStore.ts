@@ -3,6 +3,11 @@ import { arrangements, type Arrangement } from "./arrangements";
 const STORAGE_KEY = "rame_products_v1";
 const FALLBACK_IMAGE = arrangements[0]?.images?.[0] ?? "";
 
+interface PersistResult {
+  ok: boolean;
+  error?: string;
+}
+
 const cloneSeedProducts = (): Arrangement[] =>
   arrangements.map((item) => ({
     ...item,
@@ -109,8 +114,23 @@ export const getProductsFromStorage = (): Arrangement[] => {
   }
 };
 
-export const persistProductsToStorage = (products: Arrangement[]) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+const getStorageErrorMessage = (error: unknown) => {
+  if (error instanceof DOMException && error.name === "QuotaExceededError") {
+    return "No hay espacio suficiente en el navegador para guardar los productos. Usa imagenes mas livianas o limpia datos del sitio.";
+  }
+
+  return "No se pudieron guardar los productos en este navegador.";
 };
 
+export const persistProductsToStorage = (
+  products: Arrangement[]
+): PersistResult => {
+  if (typeof window === "undefined") return { ok: true };
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getStorageErrorMessage(error) };
+  }
+};

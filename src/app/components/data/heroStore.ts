@@ -12,6 +12,11 @@ export interface HeroContent {
 
 const STORAGE_KEY = "rame_hero_content_v1";
 
+interface PersistResult {
+  ok: boolean;
+  error?: string;
+}
+
 export const defaultHeroContent: HeroContent = {
   monthLabel: "Marzo 2026",
   titleLineOne: "Mes de la",
@@ -56,8 +61,24 @@ export const getHeroContentFromStorage = (): HeroContent => {
   }
 };
 
-export const persistHeroContentToStorage = (content: HeroContent) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
+const getStorageErrorMessage = (error: unknown) => {
+  if (error instanceof DOMException && error.name === "QuotaExceededError") {
+    return "No hay espacio suficiente en el navegador para guardar este banner. Usa imagenes mas livianas o limpia datos del sitio.";
+  }
+
+  return "No se pudo guardar el banner en este navegador.";
+};
+
+export const persistHeroContentToStorage = (
+  content: HeroContent
+): PersistResult => {
+  if (typeof window === "undefined") return { ok: true };
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getStorageErrorMessage(error) };
+  }
 };
 

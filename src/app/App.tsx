@@ -45,14 +45,6 @@ export default function App() {
   const [searchFilters, setSearchFilters] = useState<any>(null);
 
   useEffect(() => {
-    persistProductsToStorage(products);
-  }, [products]);
-
-  useEffect(() => {
-    persistHeroContentToStorage(heroContent);
-  }, [heroContent]);
-
-  useEffect(() => {
     if (typeof window === "undefined") return;
 
     const syncPath = () => setIsAdminView(isAdminPath());
@@ -86,6 +78,16 @@ export default function App() {
     galleryRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const handleProductsChange = (nextProducts: Arrangement[]) => {
+    setProducts(nextProducts);
+    return persistProductsToStorage(nextProducts);
+  };
+
+  const handleHeroContentChange = (nextHeroContent: HeroContent) => {
+    setHeroContent(nextHeroContent);
+    return persistHeroContentToStorage(nextHeroContent);
+  };
+
   const handleAdminLoginSuccess = () => {
     setAdminSession(true);
     setIsAdminAuthenticated(true);
@@ -114,9 +116,9 @@ export default function App() {
     return (
       <AdminPanel
         products={products}
-        onProductsChange={setProducts}
+        onProductsChange={handleProductsChange}
         heroContent={heroContent}
-        onHeroContentChange={setHeroContent}
+        onHeroContentChange={handleHeroContentChange}
         onLogout={handleAdminLogout}
       />
     );
