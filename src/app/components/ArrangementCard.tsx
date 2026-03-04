@@ -52,7 +52,7 @@ export function ArrangementCard({
             <span
               style={{
                 fontFamily: "'Playfair Display', serif",
-                fontSize: "14px",
+                fontSize: "16px",
                 fontWeight: 700,
                 color: "#3a2e26",
               }}
@@ -155,7 +155,7 @@ export function ArrangementCard({
           <span
             style={{
               fontFamily: "'Playfair Display', serif",
-              fontSize: "14px",
+              fontSize: "16px",
               fontWeight: 700,
               color: "#3a2e26",
             }}

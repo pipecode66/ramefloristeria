@@ -15,7 +15,7 @@ interface GalleryProps {
 }
 
 const MOBILE_BREAKPOINT_QUERY = "(max-width: 767px)";
-const MOBILE_BATCH_SIZE = 3;
+const MOBILE_BATCH_SIZE = 4;
 
 export function Gallery({ searchFilters, products }: GalleryProps) {
   const [selected, setSelected] = useState<Arrangement | null>(null);
@@ -162,7 +162,7 @@ export function Gallery({ searchFilters, products }: GalleryProps) {
               <div
                 className={
                   isMobile
-                    ? "grid grid-cols-1 gap-5"
+                    ? "grid grid-cols-2 gap-4"
                     : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                 }
               >
@@ -192,7 +192,7 @@ export function Gallery({ searchFilters, products }: GalleryProps) {
                       cursor: "pointer",
                     }}
                   >
-                    Ver 3 mas
+                    Ver {MOBILE_BATCH_SIZE} mas
                   </button>
                 </div>
               )}
@@ -213,7 +213,7 @@ export function Gallery({ searchFilters, products }: GalleryProps) {
                       cursor: "pointer",
                     }}
                   >
-                    Volver a los primeros 3
+                    Volver a los primeros {MOBILE_BATCH_SIZE}
                   </button>
                 </div>
               )}
