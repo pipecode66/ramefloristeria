@@ -78,6 +78,12 @@ export const arrangementFromAdminInput = (
 ): Arrangement => {
   const safeCategory = input.category.trim() || "General";
   const normalizedImage = input.image.trim() || existing?.images?.[0] || FALLBACK_IMAGE;
+  const safeFlowers =
+    existing?.flowers && existing.flowers.length > 0 ? existing.flowers : ["Mixtas"];
+  const safeOccasion =
+    existing?.occasion && existing.occasion.length > 0
+      ? existing.occasion
+      : [safeCategory];
 
   return {
     id: existing?.id ?? nextId,
@@ -89,8 +95,8 @@ export const arrangementFromAdminInput = (
       ...(existing?.images ?? []).filter((image) => image !== normalizedImage),
     ]).slice(0, 6),
     tags: uniqueValues([safeCategory, ...(existing?.tags ?? [])]).slice(0, 8),
-    flowers: uniqueValues([safeCategory, ...(existing?.flowers ?? [])]).slice(0, 6),
-    occasion: uniqueValues([safeCategory, ...(existing?.occasion ?? [])]).slice(0, 6),
+    flowers: safeFlowers.slice(0, 6),
+    occasion: uniqueValues(safeOccasion).slice(0, 6),
     colors:
       existing?.colors && existing.colors.length > 0
         ? existing.colors

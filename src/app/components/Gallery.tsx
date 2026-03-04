@@ -1,78 +1,38 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrangementCard } from "./ArrangementCard";
 import { ArrangementModal } from "./ArrangementModal";
 import type { Arrangement } from "./data/arrangements";
+import {
+  applyArrangementFilters,
+  GALLERY_TABS,
+  type ArrangementSearchFilters,
+  type GalleryTab,
+} from "./data/searchFilters";
 
 interface GalleryProps {
-  searchFilters?: any;
+  searchFilters?: ArrangementSearchFilters | null;
   products: Arrangement[];
 }
 
 export function Gallery({ searchFilters, products }: GalleryProps) {
   const [selected, setSelected] = useState<Arrangement | null>(null);
-  const [activeTab, setActiveTab] = useState<"featured" | "all">("all");
+  const [activeTab, setActiveTab] = useState<GalleryTab>("all");
 
-  const applyFilters = (arr: Arrangement[]) => {
-    if (!searchFilters) return arr;
-    let result = [...arr];
-    if (searchFilters.search) {
-      const q = searchFilters.search.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.tags.some((t) => t.toLowerCase().includes(q)) ||
-          a.flowers.some((f) => f.toLowerCase().includes(q)) ||
-          a.occasion.some((o) => o.toLowerCase().includes(q)) ||
-          a.colors.some((c) => c.toLowerCase().includes(q))
-      );
-    }
-    if (searchFilters.date) {
-      result = result.filter((a) => a.date === searchFilters.date);
-    }
-    if (searchFilters.flowers?.length > 0) {
-      result = result.filter((a) =>
-        searchFilters.flowers.some((f: string) => a.flowers.includes(f))
-      );
-    }
-    if (searchFilters.occasion?.length > 0) {
-      result = result.filter((a) =>
-        searchFilters.occasion.some((o: string) => a.occasion.includes(o))
-      );
-    }
-    if (searchFilters.colors?.length > 0) {
-      result = result.filter((a) =>
-        searchFilters.colors.some((c: string) => a.colors.includes(c))
-      );
-    }
-    if (searchFilters.priceRange) {
-      const [min, max] = searchFilters.priceRange.split("-").map(Number);
-      result = result.filter((a) => a.price >= min && a.price <= max);
-    }
-    // Sort
-    if (searchFilters.sortBy === "price-asc") {
-      result.sort((a, b) => a.price - b.price);
-    } else if (searchFilters.sortBy === "price-desc") {
-      result.sort((a, b) => b.price - a.price);
-    } else if (searchFilters.sortBy === "popular") {
-      result.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-    }
-    return result;
-  };
-
-  const featuredItems = applyFilters(products.filter((a) => a.featured));
-  const allItems = applyFilters(products);
+  const featuredItems = useMemo(
+    () => applyArrangementFilters(products.filter((item) => item.featured), searchFilters),
+    [products, searchFilters]
+  );
+  const allItems = useMemo(
+    () => applyArrangementFilters(products, searchFilters),
+    [products, searchFilters]
+  );
 
   const displayItems = activeTab === "featured" ? featuredItems : allItems;
 
   return (
     <>
-      <section
-        id="gallery"
-        className="w-full py-16 px-6"
-        style={{ backgroundColor: "#faf3ee" }}
-      >
+      <section id="gallery" className="w-full py-16 px-6" style={{ backgroundColor: "#faf3ee" }}>
         <div className="max-w-7xl mx-auto">
-          {/* Section header */}
           <div className="flex flex-col items-center mb-12">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
@@ -86,7 +46,7 @@ export function Gallery({ searchFilters, products }: GalleryProps) {
                   textTransform: "uppercase",
                 }}
               >
-                Colección RAMÉ
+                Colección RAME
               </span>
               <div className="w-10 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
             </div>
@@ -116,19 +76,15 @@ export function Gallery({ searchFilters, products }: GalleryProps) {
             </p>
           </div>
 
-          {/* Tab switcher */}
           <div className="flex items-center justify-center gap-2 mb-10">
-            {[
-              { key: "featured", label: "🌸 Arreglos del mes" },
-              { key: "all", label: "Ver todos" },
-            ].map((tab) => (
+            {GALLERY_TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
                 className="px-6 py-2.5 rounded-full transition-all duration-200"
                 style={{
-                  backgroundColor:
-                    activeTab === tab.key ? "#4a6741" : "transparent",
+                  backgroundColor: activeTab === tab.key ? "#4a6741" : "transparent",
                   color: activeTab === tab.key ? "#fdf6f0" : "#5a4a3a",
                   fontFamily: "'Lato', sans-serif",
                   fontSize: "14px",
@@ -143,7 +99,6 @@ export function Gallery({ searchFilters, products }: GalleryProps) {
             ))}
           </div>
 
-          {/* Count */}
           {displayItems.length > 0 && (
             <p
               className="text-center mb-8"
@@ -157,13 +112,12 @@ export function Gallery({ searchFilters, products }: GalleryProps) {
             </p>
           )}
 
-          {/* Grid */}
           {displayItems.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {displayItems.map((arr) => (
+              {displayItems.map((arrangement) => (
                 <ArrangementCard
-                  key={arr.id}
-                  arrangement={arr}
+                  key={arrangement.id}
+                  arrangement={arrangement}
                   onClick={setSelected}
                 />
               ))}

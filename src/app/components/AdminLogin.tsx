@@ -11,17 +11,25 @@ export function AdminLogin({ onSuccess, onBack }: AdminLoginProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
 
-    if (validateAdminCredentials(username.trim(), password)) {
+    setIsSubmitting(true);
+    const result = await validateAdminCredentials(username.trim(), password);
+    setIsSubmitting(false);
+
+    if (result.ok) {
       setErrorMessage("");
       onSuccess();
       return;
     }
 
-    setErrorMessage("Credenciales invalidas. Verifica usuario y contrasena.");
+    setErrorMessage(
+      result.error ?? "Credenciales invalidas. Verifica usuario y contrasena."
+    );
   };
 
   return (
@@ -118,9 +126,11 @@ export function AdminLogin({ onSuccess, onBack }: AdminLoginProps) {
               border: "none",
               fontWeight: 700,
               cursor: "pointer",
+              opacity: isSubmitting ? 0.75 : 1,
             }}
+            disabled={isSubmitting}
           >
-            Ingresar al panel
+            {isSubmitting ? "Verificando..." : "Ingresar al panel"}
           </button>
         </form>
 

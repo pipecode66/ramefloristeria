@@ -19,6 +19,7 @@ import {
   persistHeroContentToStorage,
 } from "./components/data/heroStore";
 import { getAdminSession, setAdminSession } from "./components/data/adminAuth";
+import type { ArrangementSearchFilters } from "./components/data/searchFilters";
 
 const isAdminPath = () => {
   if (typeof window === "undefined") return false;
@@ -36,14 +37,15 @@ export default function App() {
     getHeroContentFromStorage()
   );
   const [isAdminView, setIsAdminView] = useState<boolean>(() => isAdminPath());
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() =>
-    getAdminSession()
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(
+    null
   );
 
   const heroRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
-  const [searchFilters, setSearchFilters] = useState<any>(null);
+  const [searchFilters, setSearchFilters] =
+    useState<ArrangementSearchFilters | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -71,6 +73,25 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isAdminView) {
+      setIsAdminAuthenticated(false);
+      return;
+    }
+
+    let mounted = true;
+    setIsAdminAuthenticated(null);
+
+    void getAdminSession().then((isAuthenticated) => {
+      if (!mounted) return;
+      setIsAdminAuthenticated(isAuthenticated);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAdminView]);
+
   const scrollToSection = (section: string) => {
     if (section === "hero") {
       heroRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -87,7 +108,7 @@ export default function App() {
     }
   };
 
-  const handleFilter = (filters: any) => {
+  const handleFilter = (filters: ArrangementSearchFilters) => {
     setSearchFilters(filters);
     galleryRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -103,12 +124,11 @@ export default function App() {
   };
 
   const handleAdminLoginSuccess = () => {
-    setAdminSession(true);
     setIsAdminAuthenticated(true);
   };
 
   const handleAdminLogout = () => {
-    setAdminSession(false);
+    void setAdminSession(false);
     setIsAdminAuthenticated(false);
     if (typeof window !== "undefined") {
       window.location.hash = "";
@@ -121,6 +141,17 @@ export default function App() {
     }
     setIsAdminView(false);
   };
+
+  if (isAdminView && isAdminAuthenticated === null) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ backgroundColor: "#fdf6f0", fontFamily: "'Lato', sans-serif" }}
+      >
+        Validando sesion administrativa...
+      </div>
+    );
+  }
 
   if (isAdminView && !isAdminAuthenticated) {
     return <AdminLogin onSuccess={handleAdminLoginSuccess} onBack={exitAdminView} />;
