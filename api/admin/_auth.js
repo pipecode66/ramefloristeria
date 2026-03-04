@@ -106,11 +106,19 @@ export const isSecureRequest = (req) => {
 };
 
 export const sendJson = (res, statusCode, payload, headers = {}) => {
-  res.status(statusCode).set({
+  const body = JSON.stringify(payload);
+  const mergedHeaders = {
     "Cache-Control": "no-store",
+    "Content-Type": "application/json; charset=utf-8",
     ...headers,
-  });
-  return res.json(payload);
+  };
+
+  res.statusCode = statusCode;
+  for (const [key, value] of Object.entries(mergedHeaders)) {
+    res.setHeader(key, value);
+  }
+  res.end(body);
+  return undefined;
 };
 
 const collectBody = async (req, maxBytes = 12 * 1024) => {
