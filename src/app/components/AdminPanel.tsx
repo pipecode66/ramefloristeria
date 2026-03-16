@@ -78,6 +78,27 @@ const EMPTY_FORM: ProductFormState = {
   badgeTextColor: DEFAULT_BADGE_TEXT_COLOR,
 };
 
+const getHeroEditorImages = (content: Pick<HeroContent, "bannerImages" | "bannerImage">) => {
+  if (Array.isArray(content.bannerImages) && content.bannerImages.length > 0) {
+    return [...content.bannerImages];
+  }
+
+  if (typeof content.bannerImage === "string" && content.bannerImage.trim()) {
+    return [content.bannerImage.trim()];
+  }
+
+  return [""];
+};
+
+const createHeroFormState = (content: HeroContent): HeroContent => {
+  const bannerImages = getHeroEditorImages(content);
+  return {
+    ...content,
+    bannerImages,
+    bannerImage: bannerImages[0] ?? "",
+  };
+};
+
 const formatPrice = (price: number) =>
   new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -101,16 +122,16 @@ export function AdminPanel({
   onHeroContentChange,
   onLogout,
 }: AdminPanelProps) {
-  const [heroForm, setHeroForm] = useState<HeroContent>(heroContent);
+  const [heroForm, setHeroForm] = useState<HeroContent>(() => createHeroFormState(heroContent));
   const [bannerMessage, setBannerMessage] = useState<BannerMessage>(null);
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [compressingHeroImage, setCompressingHeroImage] = useState(false);
+  const [compressingHeroImageIndex, setCompressingHeroImageIndex] = useState<number | null>(null);
   const [compressingProductImage, setCompressingProductImage] = useState(false);
 
   useEffect(() => {
-    setHeroForm(heroContent);
+    setHeroForm(createHeroFormState(heroContent));
   }, [heroContent]);
 
   const sortedProducts = useMemo(
@@ -136,22 +157,64 @@ export function AdminPanel({
     if (bannerMessage) setBannerMessage(null);
   };
 
-  const handleHeroImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+  const updateHeroBannerAt = (index: number, value: string) => {
+    setHeroForm((prev) => {
+      const bannerImages = getHeroEditorImages(prev);
+      bannerImages[index] = value;
+      return {
+        ...prev,
+        bannerImages,
+        bannerImage: bannerImages[0]?.trim() || "",
+      };
+    });
+    if (bannerMessage) setBannerMessage(null);
+  };
+
+  const addHeroBanner = () => {
+    setHeroForm((prev) => {
+      const bannerImages = [...getHeroEditorImages(prev), ""];
+      return {
+        ...prev,
+        bannerImages,
+        bannerImage: bannerImages[0]?.trim() || "",
+      };
+    });
+    if (bannerMessage) setBannerMessage(null);
+  };
+
+  const removeHeroBanner = (index: number) => {
+    setHeroForm((prev) => {
+      const currentImages = getHeroEditorImages(prev);
+      const nextImages = currentImages.filter((_, imageIndex) => imageIndex !== index);
+      const bannerImages = nextImages.length > 0 ? nextImages : [""];
+      return {
+        ...prev,
+        bannerImages,
+        bannerImage: bannerImages[0]?.trim() || "",
+      };
+    });
+    if (bannerMessage) setBannerMessage(null);
+  };
+
+  const handleHeroImageUpload = async (
+    index: number,
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
     event.target.value = "";
 
-    setCompressingHeroImage(true);
+    setCompressingHeroImageIndex(index);
     try {
       const compressed = await compressImageFile(file, {
         maxWidth: 1920,
         maxHeight: 1920,
         targetBytes: 320 * 1024,
       });
-      updateHeroField("bannerImage", compressed.dataUrl);
+      updateHeroBannerAt(index, compressed.dataUrl);
       setBannerMessage({
         type: "success",
-        text: `Imagen comprimida automaticamente a ${Math.round(
+        text: `Banner ${index + 1} comprimido automaticamente a ${Math.round(
           compressed.bytes / 1024
         )} KB.`,
       });
@@ -160,23 +223,28 @@ export function AdminPanel({
         error instanceof Error ? error.message : "No se pudo comprimir la imagen.";
       setBannerMessage({ type: "error", text: message });
     } finally {
-      setCompressingHeroImage(false);
+      setCompressingHeroImageIndex(null);
     }
   };
 
   const handleSaveHero = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const bannerImages = heroForm.bannerImages
+      .map((image) => image.trim())
+      .filter(Boolean);
+
     const normalized: HeroContent = {
       ...heroForm,
-      bannerImage: heroForm.bannerImage.trim(),
+      bannerImages,
+      bannerImage: bannerImages[0] ?? "",
       featuredTabLabel: heroForm.featuredTabLabel.trim() || "Arreglos del mes",
     };
 
-    if (!normalized.bannerImage) {
+    if (bannerImages.length === 0) {
       setBannerMessage({
         type: "error",
-        text: "La imagen principal del banner es obligatoria.",
+        text: "Debes agregar al menos un banner principal.",
       });
       return;
     }
@@ -191,6 +259,7 @@ export function AdminPanel({
       return;
     }
 
+    setHeroForm(createHeroFormState(normalized));
     setBannerMessage({ type: "success", text: "Banner principal actualizado." });
   };
 
@@ -444,42 +513,102 @@ export function AdminPanel({
                 marginTop: "4px",
               }}
             >
-              Aqui puedes actualizar la imagen principal y el nombre de la categoria destacada.
+              Aqui puedes administrar uno o varios banners principales y el nombre de la categoria destacada.
             </p>
 
             <form className="mt-4 flex flex-col gap-4" onSubmit={handleSaveHero}>
-              <label className="flex flex-col gap-1.5">
-                <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
-                  Imagen del banner
-                </span>
-                <input
-                  type="url"
-                  value={heroForm.bannerImage}
-                  onChange={(event) => updateHeroField("bannerImage", event.target.value)}
-                  placeholder="https://..."
-                  className="rounded-xl px-4 py-2.5 outline-none"
-                  style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fdf9f6" }}
-                />
-                <label
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl cursor-pointer w-fit"
+              <div className="flex flex-col gap-4">
+                {heroForm.bannerImages.map((bannerImage, index, allBanners) => (
+                  <div
+                    key={`hero-banner-${index}`}
+                    className="rounded-2xl p-4 flex flex-col gap-3"
+                    style={{ backgroundColor: "#fdf9f6", border: "1px solid #e8d5c4" }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                        Banner {index + 1}
+                      </span>
+                      {allBanners.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeHeroBanner(index)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
+                          style={{
+                            backgroundColor: "#fbe4dc",
+                            color: "#8a3d2c",
+                            border: "none",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Trash2 size={13} />
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      type="url"
+                      value={bannerImage}
+                      onChange={(event) => updateHeroBannerAt(index, event.target.value)}
+                      placeholder="https://..."
+                      className="rounded-xl px-4 py-2.5 outline-none"
+                      style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fff" }}
+                    />
+
+                    <label
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl cursor-pointer w-fit"
+                      style={{
+                        backgroundColor: "#f0ebe4",
+                        color: "#4a6741",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        opacity: compressingHeroImageIndex === index ? 0.7 : 1,
+                      }}
+                    >
+                      <ImagePlus size={14} />
+                      {compressingHeroImageIndex === index ? "Comprimiendo..." : `Subir banner ${index + 1}`}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => handleHeroImageUpload(index, event)}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {bannerImage && (
+                      <div
+                        className="rounded-2xl overflow-hidden border"
+                        style={{ borderColor: "#e8d5c4", backgroundColor: "#fff" }}
+                      >
+                        <img
+                          src={bannerImage}
+                          alt={`Vista previa del banner ${index + 1}`}
+                          className="w-full h-44 object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addHeroBanner}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl w-fit"
                   style={{
                     backgroundColor: "#f0ebe4",
                     color: "#4a6741",
+                    border: "1px solid #d9c9bc",
                     fontSize: "13px",
                     fontWeight: 700,
-                    opacity: compressingHeroImage ? 0.7 : 1,
+                    cursor: "pointer",
                   }}
                 >
                   <ImagePlus size={14} />
-                  {compressingHeroImage ? "Comprimiendo..." : "Subir imagen del banner"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleHeroImageUpload}
-                    className="hidden"
-                  />
-                </label>
-              </label>
+                  Agregar otro banner
+                </button>
+              </div>
 
               <label className="flex flex-col gap-1.5">
                 <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
@@ -494,19 +623,6 @@ export function AdminPanel({
                   style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fdf9f6" }}
                 />
               </label>
-
-              {heroForm.bannerImage && (
-                <div
-                  className="rounded-2xl overflow-hidden border"
-                  style={{ borderColor: "#e8d5c4", backgroundColor: "#fdf9f6" }}
-                >
-                  <img
-                    src={heroForm.bannerImage}
-                    alt="Vista previa del banner"
-                    className="w-full h-44 object-cover"
-                  />
-                </div>
-              )}
 
               {bannerMessage && (
                 <p
@@ -1083,6 +1199,14 @@ export function AdminPanel({
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

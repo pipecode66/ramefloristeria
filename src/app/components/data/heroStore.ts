@@ -16,6 +16,7 @@ export interface HeroContent {
   subtitle: string;
   subtitleHighlight: string;
   bannerImage: string;
+  bannerImages: string[];
   featuredTabLabel: string;
   showGalleryButton: boolean;
   galleryButtonLabel: string;
@@ -41,7 +42,11 @@ interface HeroStoredPayload {
 
 type PartialHeroLegacy = Partial<HeroContent> & {
   mainImage?: unknown;
+  bannerImages?: unknown;
 };
+
+const DEFAULT_BANNER_IMAGE =
+  "https://images.unsplash.com/photo-1771134572111-967700a8bb31?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyb21hbnRpYyUyMHJvc2UlMjBib3VxdWV0JTIwcGluayUyMGZsb3dlcnMlMjBlbGVnYW50fGVufDF8fHx8MTc3MjU0NzQwNXww&ixlib=rb-4.1.0&q=80&w=1600";
 
 export const defaultHeroContent: HeroContent = {
   monthLabel: "Marzo 2026",
@@ -49,8 +54,8 @@ export const defaultHeroContent: HeroContent = {
   titleLineTwo: "Mujer 2026",
   subtitle: "Arreglos florales con pasion, amor y elegancia.",
   subtitleHighlight: "Cada flor, una historia. Cada bouquet, un abrazo.",
-  bannerImage:
-    "https://images.unsplash.com/photo-1771134572111-967700a8bb31?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyb21hbnRpYyUyMHJvc2UlMjBib3VxdWV0JTIwcGluayUyMGZsb3dlcnMlMjBlbGVnYW50fGVufDF8fHx8MTc3MjU0NzQwNXww&ixlib=rb-4.1.0&q=80&w=1600",
+  bannerImage: DEFAULT_BANNER_IMAGE,
+  bannerImages: [DEFAULT_BANNER_IMAGE],
   featuredTabLabel: "Arreglos del mes",
   showGalleryButton: true,
   galleryButtonLabel: "Ver arreglos",
@@ -93,8 +98,32 @@ const sanitizeButtons = (value: unknown): HeroExtraButton[] => {
     .filter((button): button is HeroExtraButton => Boolean(button));
 };
 
+const sanitizeBannerImages = (value: unknown, fallback: string): string[] => {
+  const fromArray = Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
+  if (fromArray.length > 0) {
+    return Array.from(new Set(fromArray));
+  }
+
+  return fallback.trim() ? [fallback.trim()] : [defaultHeroContent.bannerImage];
+};
+
+export const getHeroBannerImages = (content: Pick<HeroContent, "bannerImage" | "bannerImages">) => {
+  return sanitizeBannerImages(content.bannerImages, content.bannerImage);
+};
+
 export const normalizeHeroContent = (value: unknown): HeroContent => {
   const parsed = ((value ?? {}) as PartialHeroLegacy) || {};
+  const bannerImage = sanitizeText(
+    parsed.bannerImage ?? parsed.mainImage,
+    defaultHeroContent.bannerImage
+  );
+  const bannerImages = sanitizeBannerImages(parsed.bannerImages, bannerImage);
 
   return {
     monthLabel: sanitizeText(parsed.monthLabel, defaultHeroContent.monthLabel),
@@ -105,10 +134,8 @@ export const normalizeHeroContent = (value: unknown): HeroContent => {
       parsed.subtitleHighlight,
       defaultHeroContent.subtitleHighlight
     ),
-    bannerImage: sanitizeText(
-      parsed.bannerImage ?? parsed.mainImage,
-      defaultHeroContent.bannerImage
-    ),
+    bannerImage: bannerImages[0] ?? defaultHeroContent.bannerImage,
+    bannerImages,
     featuredTabLabel: sanitizeText(
       parsed.featuredTabLabel,
       defaultHeroContent.featuredTabLabel
@@ -259,7 +286,7 @@ export const persistHeroContentToStorage = async (
   if (typeof window === "undefined") return { ok: true };
 
   const payload: HeroStoredPayload = {
-    content,
+    content: normalizeHeroContent(content),
     updatedAt: Date.now(),
   };
 
@@ -286,4 +313,3 @@ export const persistHeroContentToStorage = async (
     error: getStorageErrorMessage(localError),
   };
 };
-

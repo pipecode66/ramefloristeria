@@ -65,7 +65,7 @@ export const getSharedStore = async (): Promise<SharedStoreReadResult> => {
       ok: true,
       storageEnabled: Boolean(payload.storageEnabled),
       heroContent: isObject(payload.heroContent)
-        ? (payload.heroContent as HeroContent)
+        ? normalizeHeroContent(payload.heroContent)
         : null,
       products: Array.isArray(payload.products)
         ? (payload.products as Arrangement[])
@@ -118,4 +118,3 @@ export const syncSharedStorePatch = async (
     };
   }
 };
-
