@@ -93,7 +93,7 @@ const sanitizeButtons = (value: unknown): HeroExtraButton[] => {
     .filter((button): button is HeroExtraButton => Boolean(button));
 };
 
-const normalizeHeroContent = (value: unknown): HeroContent => {
+export const normalizeHeroContent = (value: unknown): HeroContent => {
   const parsed = ((value ?? {}) as PartialHeroLegacy) || {};
 
   return {
@@ -286,3 +286,4 @@ export const persistHeroContentToStorage = async (
     error: getStorageErrorMessage(localError),
   };
 };
+

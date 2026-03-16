@@ -1,4 +1,4 @@
-﻿import type { HeroContent } from "./heroStore";
+﻿import { normalizeHeroContent, type HeroContent } from "./heroStore";
 import type { Arrangement } from "./arrangements";
 
 interface SharedStoreResponse {
@@ -118,3 +118,4 @@ export const syncSharedStorePatch = async (
     };
   }
 };
+

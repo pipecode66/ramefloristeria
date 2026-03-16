@@ -305,7 +305,7 @@ export default function App() {
         <Gallery
           searchFilters={searchFilters}
           products={products}
-          featuredLabel={heroContent.featuredTabLabel.trim() || "Arreglos del mes"}
+          featuredLabel={(heroContent.featuredTabLabel ?? "").trim() || "Arreglos del mes"}
         />
       </div>
 
@@ -317,5 +317,6 @@ export default function App() {
     </div>
   );
 }
+
 
 
