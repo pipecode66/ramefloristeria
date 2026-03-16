@@ -1,4 +1,4 @@
-﻿export type HeroButtonVariant = "filled" | "outline" | "light";
+export type HeroButtonVariant = "filled" | "outline" | "light";
 
 export interface HeroExtraButton {
   id: string;
@@ -66,6 +66,11 @@ export const defaultHeroContent: HeroContent = {
 
 const sanitizeText = (value: unknown, fallback: string) =>
   typeof value === "string" && value.trim() ? value.trim() : fallback;
+
+const sanitizeFeaturedTabLabel = (value: unknown, fallback: string) => {
+  const text = sanitizeText(value, fallback).replace(/^(?:\u{1F338})\s*/u, "").trim();
+  return text || fallback;
+};
 
 const sanitizeBoolean = (value: unknown, fallback: boolean) =>
   typeof value === "boolean" ? value : fallback;
@@ -136,7 +141,7 @@ export const normalizeHeroContent = (value: unknown): HeroContent => {
     ),
     bannerImage: bannerImages[0] ?? defaultHeroContent.bannerImage,
     bannerImages,
-    featuredTabLabel: sanitizeText(
+    featuredTabLabel: sanitizeFeaturedTabLabel(
       parsed.featuredTabLabel,
       defaultHeroContent.featuredTabLabel
     ),

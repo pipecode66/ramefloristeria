@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrangementCard } from "./ArrangementCard";
 import { ArrangementModal } from "./ArrangementModal";
 import type { Arrangement } from "./data/arrangements";
@@ -26,7 +26,7 @@ export function Gallery({ searchFilters, products, featuredLabel }: GalleryProps
 
   const tabs = useMemo(
     () => [
-      { key: "featured" as const, label: `🌸 ${featuredLabel}` },
+      { key: "featured" as const, label: featuredLabel },
       { key: "all" as const, label: "Ver todos" },
     ],
     [featuredLabel]
@@ -163,7 +163,7 @@ export function Gallery({ searchFilters, products, featuredLabel }: GalleryProps
             </div>
           ) : (
             <div className="flex flex-col items-center py-20 gap-4">
-              <span style={{ fontSize: "48px" }}>🌱</span>
+              <span style={{ fontSize: "48px" }}>{"\u{1F331}"}</span>
               <p
                 style={{
                   fontFamily: "'Playfair Display', serif",

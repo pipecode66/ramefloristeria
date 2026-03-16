@@ -1,4 +1,4 @@
-﻿import {
+import {
   type ChangeEvent,
   type FormEvent,
   useEffect,
@@ -279,7 +279,8 @@ export function AdminPanel({
 
     const normalized: HeroContent = {
       ...heroContent,
-      featuredTabLabel: featuredLabelForm.trim() || "Arreglos del mes",
+      featuredTabLabel:
+        featuredLabelForm.replace(/^(?:\u{1F338})\s*/u, "").trim() || "Arreglos del mes",
     };
 
     const result = await onHeroContentChange(normalized);
@@ -944,7 +945,7 @@ export function AdminPanel({
                       type="text"
                       value={form.badgeEmoji}
                       onChange={(event) => updateField("badgeEmoji", event.target.value)}
-                      placeholder="Ej: ⭐"
+                      placeholder={"Ej: \u2B50"}
                       maxLength={6}
                       className="rounded-xl px-4 py-2.5 outline-none"
                       style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fff" }}
@@ -1295,19 +1296,3 @@ export function AdminPanel({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
