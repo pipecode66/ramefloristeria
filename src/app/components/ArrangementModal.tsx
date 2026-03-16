@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { X, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Arrangement } from "./data/arrangements";
 import { createProductWhatsAppLink } from "./data/whatsapp";
+import { formatBadgeLabel } from "./data/productBadges";
 
 interface ArrangementModalProps {
   arrangement: Arrangement | null;
@@ -31,15 +32,12 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
     }).format(price);
 
   const waLink = createProductWhatsAppLink(arrangement.name);
+  const badgeLabel = formatBadgeLabel(arrangement.badge);
 
   const prevImage = () =>
-    setCurrentImage((p) =>
-      p === 0 ? arrangement.images.length - 1 : p - 1
-    );
+    setCurrentImage((p) => (p === 0 ? arrangement.images.length - 1 : p - 1));
   const nextImage = () =>
-    setCurrentImage((p) =>
-      p === arrangement.images.length - 1 ? 0 : p + 1
-    );
+    setCurrentImage((p) => (p === arrangement.images.length - 1 ? 0 : p + 1));
 
   return (
     <div
@@ -52,7 +50,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
         style={{ backgroundColor: "#fdf6f0" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full flex items-center justify-center transition-colors duration-150"
@@ -65,11 +62,7 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
           <X size={18} color="#5a4a3a" />
         </button>
 
-        {/* Image section */}
-        <div
-          className="relative md:w-[48%] flex-shrink-0"
-          style={{ minHeight: "340px" }}
-        >
+        <div className="relative md:w-[48%] flex-shrink-0" style={{ minHeight: "340px" }}>
           <img
             src={arrangement.images[currentImage]}
             alt={arrangement.name}
@@ -79,7 +72,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
               maxHeight: "460px",
             }}
           />
-          {/* Navigation arrows (only if multiple images) */}
           {arrangement.images.length > 1 && (
             <>
               <button
@@ -96,7 +88,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
               >
                 <ChevronRight size={18} color="#4a6741" />
               </button>
-              {/* Dot indicators */}
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
                 {arrangement.images.map((_, i) => (
                   <button
@@ -106,7 +97,8 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
                       width: i === currentImage ? 20 : 7,
                       height: 7,
                       borderRadius: 4,
-                      backgroundColor: i === currentImage ? "#fdf6f0" : "rgba(253,246,240,0.5)",
+                      backgroundColor:
+                        i === currentImage ? "#fdf6f0" : "rgba(253,246,240,0.5)",
                       border: "none",
                       cursor: "pointer",
                       transition: "all 0.2s ease",
@@ -117,29 +109,24 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
               </div>
             </>
           )}
-          {/* Badge */}
-          {arrangement.badge && (
+
+          {arrangement.badge && badgeLabel && (
             <div
               className="absolute top-4 left-4 px-3 py-1.5 rounded-full"
               style={{
-                backgroundColor: "#4a6741",
-                color: "#fdf6f0",
+                backgroundColor: arrangement.badge.backgroundColor,
+                color: arrangement.badge.textColor,
                 fontFamily: "'Lato', sans-serif",
                 fontSize: "11px",
                 fontWeight: 700,
               }}
             >
-              {arrangement.badge}
+              {badgeLabel}
             </div>
           )}
         </div>
 
-        {/* Info section */}
-        <div
-          className="flex-1 flex flex-col gap-5 p-7 md:p-8"
-          style={{ borderRadius: "0 0 24px 24px" }}
-        >
-          {/* Label */}
+        <div className="flex-1 flex flex-col gap-5 p-7 md:p-8" style={{ borderRadius: "0 0 24px 24px" }}>
           <div className="flex items-center gap-2">
             <div className="w-6 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
             <span
@@ -156,7 +143,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
             </span>
           </div>
 
-          {/* Name */}
           <h2
             style={{
               fontFamily: "'Playfair Display', serif",
@@ -169,7 +155,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
             {arrangement.name}
           </h2>
 
-          {/* Tags */}
           <div className="flex flex-wrap gap-2">
             {arrangement.tags.map((tag) => (
               <span
@@ -187,7 +172,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
             ))}
           </div>
 
-          {/* Description */}
           <p
             style={{
               fontFamily: "'Lato', sans-serif",
@@ -200,17 +184,15 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
             {arrangement.description}
           </p>
 
-          {/* Flowers */}
           <div className="flex items-center gap-2">
             <span style={{ fontFamily: "'Lato', sans-serif", fontSize: "13px", color: "#9e7b5a" }}>
-              🌿 Flores:
+              Flores:
             </span>
             <span style={{ fontFamily: "'Lato', sans-serif", fontSize: "13px", color: "#5a4a3a", fontWeight: 600 }}>
               {arrangement.flowers.join(", ")}
             </span>
           </div>
 
-          {/* Gold divider */}
           <div
             style={{
               width: "100%",
@@ -219,7 +201,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
             }}
           />
 
-          {/* Price */}
           <div className="flex items-baseline gap-2">
             <span
               style={{
@@ -242,7 +223,6 @@ export function ArrangementModal({ arrangement, onClose }: ArrangementModalProps
             </span>
           </div>
 
-          {/* CTA Buttons */}
           <div className="flex flex-col gap-3 mt-1">
             <a
               href={waLink}

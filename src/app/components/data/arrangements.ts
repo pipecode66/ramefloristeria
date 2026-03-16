@@ -1,3 +1,9 @@
+﻿import type { ArrangementBadge } from "./productBadges";
+import {
+  DEFAULT_BADGE_BACKGROUND_COLOR,
+  DEFAULT_BADGE_TEXT_COLOR,
+} from "./productBadges";
+
 export interface Arrangement {
   id: number;
   name: string;
@@ -10,84 +16,91 @@ export interface Arrangement {
   colors: string[];
   date: string;
   featured: boolean;
-  badge?: string;
+  badge?: ArrangementBadge;
 }
+
+const badge = (text: string, emoji?: string): ArrangementBadge => ({
+  text,
+  emoji,
+  backgroundColor: DEFAULT_BADGE_BACKGROUND_COLOR,
+  textColor: DEFAULT_BADGE_TEXT_COLOR,
+});
 
 export const arrangements: Arrangement[] = [
   {
     id: 1,
     name: "Bouquet Primavera Rosa",
     description:
-      "Un exquisito bouquet de rosas rosadas y peonías, envuelto en papel kraft con cinta satinada dorada. Ideal para celebrar a esa mujer especial en su día. Incluye flores frescas de temporada y follaje verde premium.",
+      "Un exquisito bouquet de rosas rosadas y peonias, envuelto en papel kraft con cinta satinada dorada. Ideal para celebrar a esa mujer especial en su dia. Incluye flores frescas de temporada y follaje verde premium.",
     price: 120000,
     images: [
       "https://images.unsplash.com/photo-1771134572111-967700a8bb31?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
       "https://images.unsplash.com/photo-1510826079925-c32e6673a0bb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
     ],
-    tags: ["Rosas", "Cumpleaños", "Pastel", "Especial"],
-    flowers: ["Rosas", "Peonías"],
-    occasion: ["Cumpleaños", "Romance"],
+    tags: ["Rosas", "Cumpleanos", "Pastel", "Especial"],
+    flowers: ["Rosas", "Peonias"],
+    occasion: ["Cumpleanos", "Romance"],
     colors: ["Rosado", "Pastel"],
-    date: "Día de la Mujer",
+    date: "Dia de la Mujer",
     featured: true,
-    badge: "⭐ Más vendido",
+    badge: badge("Mas vendido", "⭐"),
   },
   {
     id: 2,
     name: "Elegancia Blanca Premium",
     description:
-      "Arreglo de orquídeas blancas y rosas marfil sobre base de bambú verde. Un regalo atemporal que transmite pureza y sofisticación. Perfecto para condolencias, aniversarios o simplemente para sorprender.",
+      "Arreglo de orquideas blancas y rosas marfil sobre base de bamboo verde. Un regalo atemporal que transmite pureza y sofisticacion. Perfecto para condolencias, aniversarios o simplemente para sorprender.",
     price: 185000,
     images: [
       "https://images.unsplash.com/photo-1712629069699-86c8d9a06050?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
       "https://images.unsplash.com/photo-1673277741752-4138d8a01c7b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
     ],
-    tags: ["Orquídeas", "Premium", "Blanco", "Aniversario"],
-    flowers: ["Orquídeas"],
+    tags: ["Orquideas", "Premium", "Blanco", "Aniversario"],
+    flowers: ["Orquideas"],
     occasion: ["Aniversario", "Condolencias"],
     colors: ["Blanco"],
     date: "Aniversario",
     featured: true,
-    badge: "✨ Premium",
+    badge: badge("Premium", "✨"),
   },
   {
     id: 3,
     name: "Sol Radiante",
     description:
-      "Alegre bouquet de girasoles frescos con ramas de eucalipto y flores silvestres amarillas. Transmite energía positiva y alegría. Presentado en papel de seda con lazo artesanal.",
+      "Alegre bouquet de girasoles frescos con ramas de eucalipto y flores silvestres amarillas. Transmite energia positiva y alegria. Presentado en papel de seda con lazo artesanal.",
     price: 85000,
     images: [
       "https://images.unsplash.com/photo-1760538021426-b7ecf5d2236c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
     ],
-    tags: ["Girasoles", "Cumpleaños", "Amarillo", "Alegre"],
+    tags: ["Girasoles", "Cumpleanos", "Amarillo", "Alegre"],
     flowers: ["Girasoles"],
-    occasion: ["Cumpleaños", "Gracias"],
+    occasion: ["Cumpleanos", "Gracias"],
     colors: ["Amarillo"],
-    date: "Cumpleaños",
+    date: "Cumpleanos",
     featured: false,
   },
   {
     id: 4,
-    name: "Jardín Pastel Mixto",
+    name: "Jardin Pastel Mixto",
     description:
-      "Mezcla armoniosa de flores de temporada en tonos pasteles: tulipanes, ranúnculos y campanillas. Un arreglo versátil, alegre y delicado que llena cualquier espacio de color y vida.",
+      "Mezcla armoniosa de flores de temporada en tonos pasteles: tulipanes, ranunculos y campanillas. Un arreglo versatil, alegre y delicado que llena cualquier espacio de color y vida.",
     price: 95000,
     images: [
       "https://images.unsplash.com/photo-1618119089596-03403f29a6b4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
     ],
-    tags: ["Mixtas", "Pastel", "Graduación", "Primavera"],
+    tags: ["Mixtas", "Pastel", "Graduacion", "Primavera"],
     flowers: ["Mixtas", "Tulipanes"],
-    occasion: ["Graduación", "Cumpleaños"],
+    occasion: ["Graduacion", "Cumpleanos"],
     colors: ["Pastel", "Multicolor"],
-    date: "Día de la Mujer",
+    date: "Dia de la Mujer",
     featured: true,
-    badge: "🌸 Mes de la Mujer",
+    badge: badge("Mes de la Mujer", "🌸"),
   },
   {
     id: 5,
     name: "Amor Eterno Rojo",
     description:
-      "Clásico e irresistible: 12 rosas rojas largas de tallo en presentación boutique con papel negro y lazo satinado rojo. El regalo perfecto para expresar amor profundo y pasión.",
+      "Clasico e irresistible: 12 rosas rojas largas de tallo en presentacion boutique con papel negro y lazo satinado rojo. El regalo perfecto para expresar amor profundo y pasion.",
     price: 145000,
     images: [
       "https://images.unsplash.com/photo-1771134571934-1bc0b0dd94e3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
@@ -101,54 +114,54 @@ export const arrangements: Arrangement[] = [
   },
   {
     id: 6,
-    name: "Serenidad Peonías",
+    name: "Serenidad Peonias",
     description:
-      "Generoso bouquet de peonías rosadas con gypsophila y hojas de salvia. Elegante y romántico, ideal para regalar en el Día de la Madre o celebrar a alguien muy especial.",
+      "Generoso bouquet de peonias rosadas con gypsophila y hojas de salvia. Elegante y romantico, ideal para regalar en el Dia de la Madre o celebrar a alguien muy especial.",
     price: 160000,
     images: [
       "https://images.unsplash.com/photo-1510826079925-c32e6673a0bb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
       "https://images.unsplash.com/photo-1771134572111-967700a8bb31?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
     ],
-    tags: ["Peonías", "Rosado", "Madre", "Elegante"],
-    flowers: ["Peonías"],
-    occasion: ["Romance", "Cumpleaños"],
+    tags: ["Peonias", "Rosado", "Madre", "Elegante"],
+    flowers: ["Peonias"],
+    occasion: ["Romance", "Cumpleanos"],
     colors: ["Rosado"],
-    date: "Día de la Madre",
+    date: "Dia de la Madre",
     featured: true,
-    badge: "💕 Favorito",
+    badge: badge("Favorito", "💕"),
   },
   {
     id: 7,
     name: "Naturaleza Silvestre",
     description:
-      "Composición artística con flores silvestres, ramas secas doradas y flores secas preservadas. Un arreglo bohemio y único que perdura en el tiempo como decoración.",
+      "Composicion artistica con flores silvestres, ramas secas doradas y flores secas preservadas. Un arreglo bohemio y unico que perdura en el tiempo como decoracion.",
     price: 110000,
     images: [
       "https://images.unsplash.com/photo-1758749396186-b7f5ab9c3a72?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
     ],
-    tags: ["Mixtas", "Decoración", "Natural", "Rustico"],
+    tags: ["Mixtas", "Decoracion", "Natural", "Rustico"],
     flowers: ["Mixtas"],
-    occasion: ["Decoración", "Gracias"],
+    occasion: ["Decoracion", "Gracias"],
     colors: ["Multicolor"],
-    date: "Cumpleaños",
+    date: "Cumpleanos",
     featured: false,
   },
   {
     id: 8,
     name: "Lujo en Blanco Total",
     description:
-      "Arreglo de alto impacto visual: rosas blancas, lirios y callas en jarrón de cristal premium. Diseñado para espacios exclusivos o para regalar con toda la elegancia.",
+      "Arreglo de alto impacto visual: rosas blancas, lirios y callas en jarron de cristal premium. Disenado para espacios exclusivos o para regalar con toda la elegancia.",
     price: 250000,
     images: [
       "https://images.unsplash.com/photo-1673277741752-4138d8a01c7b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
       "https://images.unsplash.com/photo-1712629069699-86c8d9a06050?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800",
     ],
     tags: ["Rosas", "Blanco", "Premium", "Lujoso"],
-    flowers: ["Rosas", "Orquídeas"],
+    flowers: ["Rosas", "Orquideas"],
     occasion: ["Aniversario", "Condolencias"],
     colors: ["Blanco"],
     date: "Aniversario",
     featured: false,
-    badge: "💎 Exclusivo",
+    badge: badge("Exclusivo", "💎"),
   },
 ];

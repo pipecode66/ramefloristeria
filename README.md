@@ -1,4 +1,4 @@
-# Landing Page RAME Floristeria
+﻿# Landing Page RAME Floristeria
 
 Landing page en React + Vite para catalogo y contacto, con panel administrativo protegido por sesion HTTP.
 
@@ -66,6 +66,7 @@ En Vercel define variables de entorno en Project Settings:
 - `ADMIN_SESSION_MAX_AGE_SECONDS` (opcional)
 - `BLOB_READ_WRITE_TOKEN` (obligatorio para que banner/productos se sincronicen entre dispositivos)
 - `BLOB_STORE_ACCESS` (opcional: `private` o `public`; si no se define, el backend intenta ambos modos)
+- `API_JSON_BODY_MAX_BYTES` (opcional; por defecto 8388608, util si subes imagenes mas pesadas)
 
 Despues de guardar variables, fuerza un nuevo deploy.
 
@@ -80,3 +81,6 @@ Despues de guardar variables, fuerza un nuevo deploy.
 
 - Productos: `localStorage`
 - Hero/banner: `localStorage` + respaldo en `IndexedDB`
+
+
+

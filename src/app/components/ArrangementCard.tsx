@@ -1,7 +1,8 @@
-import { Eye, MessageCircle } from "lucide-react";
+﻿import { Eye, MessageCircle } from "lucide-react";
 import type { Arrangement } from "./data/arrangements";
 import { getProductCategory } from "./data/productsStore";
 import { createProductWhatsAppLink } from "./data/whatsapp";
+import { formatBadgeLabel } from "./data/productBadges";
 
 interface ArrangementCardProps {
   arrangement: Arrangement;
@@ -23,6 +24,7 @@ export function ArrangementCard({
 }: ArrangementCardProps) {
   const waLink = createProductWhatsAppLink(arrangement.name);
   const category = getProductCategory(arrangement);
+  const badgeLabel = formatBadgeLabel(arrangement.badge);
 
   if (mobileLayout) {
     return (
@@ -41,6 +43,23 @@ export function ArrangementCard({
             alt={arrangement.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
+
+          {arrangement.badge && badgeLabel && (
+            <div
+              className="absolute top-3 left-3 px-3 py-1 rounded-full shadow-sm"
+              style={{
+                backgroundColor: arrangement.badge.backgroundColor,
+                color: arrangement.badge.textColor,
+                fontFamily: "'Lato', sans-serif",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.03em",
+                maxWidth: "75%",
+              }}
+            >
+              {badgeLabel}
+            </div>
+          )}
 
           <div
             className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl shadow-md"
@@ -129,19 +148,19 @@ export function ArrangementCard({
           </div>
         </div>
 
-        {arrangement.badge && (
+        {arrangement.badge && badgeLabel && (
           <div
             className="absolute top-3 left-3 px-3 py-1 rounded-full"
             style={{
-              backgroundColor: "#4a6741",
-              color: "#fdf6f0",
+              backgroundColor: arrangement.badge.backgroundColor,
+              color: arrangement.badge.textColor,
               fontFamily: "'Lato', sans-serif",
               fontSize: "10px",
               fontWeight: 700,
               letterSpacing: "0.04em",
             }}
           >
-            {arrangement.badge}
+            {badgeLabel}
           </div>
         )}
 

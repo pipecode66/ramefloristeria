@@ -1,13 +1,17 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+﻿import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE_NAME = "rame_admin_session";
 const DEFAULT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
+const DEFAULT_MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
+
+const getMaxJsonBodyBytes = () =>
+  parsePositiveInteger(process.env.API_JSON_BODY_MAX_BYTES, DEFAULT_MAX_JSON_BODY_BYTES);
 
 export const getAuthConfig = () => {
   const username = process.env.ADMIN_USERNAME?.trim() ?? "";
@@ -121,7 +125,7 @@ export const sendJson = (res, statusCode, payload, headers = {}) => {
   return undefined;
 };
 
-const collectBody = async (req, maxBytes = 12 * 1024) => {
+const collectBody = async (req, maxBytes = getMaxJsonBodyBytes()) => {
   const chunks = [];
   let totalBytes = 0;
 
@@ -138,11 +142,17 @@ const collectBody = async (req, maxBytes = 12 * 1024) => {
 };
 
 export const readJsonBody = async (req) => {
+  const maxBytes = getMaxJsonBodyBytes();
+
   if (req.body && typeof req.body === "object") {
     return req.body;
   }
 
   if (typeof req.body === "string") {
+    if (Buffer.byteLength(req.body, "utf8") > maxBytes) {
+      throw new Error("request_too_large");
+    }
+
     try {
       return JSON.parse(req.body);
     } catch {
@@ -150,7 +160,7 @@ export const readJsonBody = async (req) => {
     }
   }
 
-  const raw = await collectBody(req);
+  const raw = await collectBody(req, maxBytes);
   if (!raw) return {};
   try {
     return JSON.parse(raw);

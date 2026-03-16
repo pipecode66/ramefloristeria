@@ -1,4 +1,4 @@
-import type { HeroContent } from "./heroStore";
+﻿import type { HeroContent } from "./heroStore";
 import type { Arrangement } from "./arrangements";
 
 interface SharedStoreResponse {
@@ -13,6 +13,8 @@ interface SharedStoreResponse {
 interface SharedStorePatch {
   heroContent?: HeroContent;
   products?: Arrangement[];
+  upsertProduct?: Arrangement;
+  deleteProductId?: number;
 }
 
 interface SharedStoreReadResult {
@@ -100,9 +102,7 @@ export const syncSharedStorePatch = async (
       return {
         ok: false,
         storageEnabled: true,
-        error:
-          payload?.error ??
-          "No se pudo sincronizar el contenido compartido.",
+        error: payload?.error ?? "No se pudo sincronizar el contenido compartido.",
       };
     }
 

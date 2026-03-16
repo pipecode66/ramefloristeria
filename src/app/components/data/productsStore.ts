@@ -1,6 +1,16 @@
-import { arrangements, type Arrangement } from "./arrangements";
+﻿import { arrangements, type Arrangement } from "./arrangements";
+import {
+  DEFAULT_BADGE_BACKGROUND_COLOR,
+  DEFAULT_BADGE_TEXT_COLOR,
+  normalizeBadge,
+  sanitizeBadgeColor,
+  type ArrangementBadge,
+} from "./productBadges";
 
-const STORAGE_KEY = "rame_products_v1";
+const STORAGE_KEY = "rame_products_v2";
+const DB_NAME = "rame_products_storage_v1";
+const DB_STORE = "products_catalog";
+const DB_KEY = "main";
 const FALLBACK_IMAGE = arrangements[0]?.images?.[0] ?? "";
 export const PRODUCT_PRICE_MIN = 1;
 export const PRODUCT_PRICE_MAX = 9_999_999_999;
@@ -8,6 +18,15 @@ export const PRODUCT_PRICE_MAX = 9_999_999_999;
 interface PersistResult {
   ok: boolean;
   error?: string;
+}
+
+interface ProductsStoredPayload {
+  products: Arrangement[];
+  updatedAt: number;
+}
+
+interface LegacyArrangement extends Partial<Arrangement> {
+  badge?: unknown;
 }
 
 const cloneSeedProducts = (): Arrangement[] =>
@@ -18,6 +37,7 @@ const cloneSeedProducts = (): Arrangement[] =>
     flowers: [...item.flowers],
     occasion: [...item.occasion],
     colors: [...item.colors],
+    badge: item.badge ? { ...item.badge } : undefined,
   }));
 
 const toStringArray = (value: unknown, fallback: string): string[] => {
@@ -29,9 +49,11 @@ const toStringArray = (value: unknown, fallback: string): string[] => {
 const normalizePrice = (price: number) =>
   Math.min(PRODUCT_PRICE_MAX, Math.max(PRODUCT_PRICE_MIN, Math.round(price)));
 
+const parseBadge = (value: unknown): ArrangementBadge | undefined => normalizeBadge(value);
+
 const normalizeProduct = (value: unknown, index: number): Arrangement | null => {
   if (!value || typeof value !== "object") return null;
-  const item = value as Partial<Arrangement>;
+  const item = value as LegacyArrangement;
   const name = typeof item.name === "string" ? item.name.trim() : "";
   if (!name) return null;
 
@@ -54,11 +76,125 @@ const normalizeProduct = (value: unknown, index: number): Arrangement | null => 
     colors: toStringArray(item.colors, "Multicolor").slice(0, 6),
     date: categoryFallback,
     featured: Boolean(item.featured),
-    badge: typeof item.badge === "string" && item.badge.trim() ? item.badge : undefined,
+    badge: parseBadge(item.badge),
   };
 };
 
 const uniqueValues = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
+
+const parsePayload = (raw: unknown): ProductsStoredPayload | null => {
+  if (Array.isArray(raw)) {
+    const normalized = raw
+      .map((item, index) => normalizeProduct(item, index))
+      .filter((item): item is Arrangement => Boolean(item));
+
+    return {
+      products: normalized.length > 0 ? normalized : cloneSeedProducts(),
+      updatedAt: 0,
+    };
+  }
+
+  if (!raw || typeof raw !== "object") return null;
+  const parsed = raw as Record<string, unknown>;
+  if (!Array.isArray(parsed.products)) return null;
+
+  const normalized = parsed.products
+    .map((item, index) => normalizeProduct(item, index))
+    .filter((item): item is Arrangement => Boolean(item));
+
+  return {
+    products: normalized.length > 0 ? normalized : cloneSeedProducts(),
+    updatedAt:
+      typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt)
+        ? parsed.updatedAt
+        : 0,
+  };
+};
+
+const readLocalPayload = (): ProductsStoredPayload | null => {
+  if (typeof window === "undefined") return null;
+
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    return parsePayload(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+};
+
+const supportsIndexedDb = () =>
+  typeof window !== "undefined" && typeof window.indexedDB !== "undefined";
+
+const openDb = () =>
+  new Promise<IDBDatabase>((resolve, reject) => {
+    if (!supportsIndexedDb()) {
+      reject(new Error("IndexedDB no disponible"));
+      return;
+    }
+
+    const request = window.indexedDB.open(DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) {
+        db.createObjectStore(DB_STORE);
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error("No se pudo abrir IndexedDB"));
+  });
+
+const readIndexedDbPayload = async (): Promise<ProductsStoredPayload | null> => {
+  if (!supportsIndexedDb()) return null;
+
+  try {
+    const db = await openDb();
+    const payload = await new Promise<ProductsStoredPayload | null>((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readonly");
+      const store = tx.objectStore(DB_STORE);
+      const request = store.get(DB_KEY);
+
+      request.onsuccess = () => resolve(parsePayload(request.result));
+      request.onerror = () =>
+        reject(request.error ?? new Error("No se pudo leer el catalogo"));
+    });
+    db.close();
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
+const writeIndexedDbPayload = async (payload: ProductsStoredPayload): Promise<boolean> => {
+  if (!supportsIndexedDb()) return false;
+
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () =>
+        reject(tx.error ?? new Error("No se pudo escribir el catalogo"));
+      tx.objectStore(DB_STORE).put(payload, DB_KEY);
+    });
+    db.close();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const getStorageErrorMessage = (error: unknown) => {
+  if (error instanceof DOMException && error.name === "QuotaExceededError") {
+    return "No hay espacio suficiente en el navegador para guardar los productos. Usa imagenes mas livianas o limpia datos del sitio.";
+  }
+
+  return "No se pudieron guardar los productos en este navegador.";
+};
 
 export interface AdminProductInput {
   name: string;
@@ -66,6 +202,12 @@ export interface AdminProductInput {
   image: string;
   category: string;
   price: number;
+  featured: boolean;
+  badgeEnabled: boolean;
+  badgeText: string;
+  badgeEmoji: string;
+  badgeBackgroundColor: string;
+  badgeTextColor: string;
 }
 
 export const getProductCategory = (product: Arrangement): string =>
@@ -84,6 +226,23 @@ export const arrangementFromAdminInput = (
     existing?.occasion && existing.occasion.length > 0
       ? existing.occasion
       : [safeCategory];
+  const badgeText = input.badgeText.trim();
+  const badgeEmoji = input.badgeEmoji.trim();
+  const badge =
+    input.badgeEnabled && badgeText
+      ? {
+          text: badgeText,
+          emoji: badgeEmoji || undefined,
+          backgroundColor: sanitizeBadgeColor(
+            input.badgeBackgroundColor,
+            DEFAULT_BADGE_BACKGROUND_COLOR
+          ),
+          textColor: sanitizeBadgeColor(
+            input.badgeTextColor,
+            DEFAULT_BADGE_TEXT_COLOR
+          ),
+        }
+      : undefined;
 
   return {
     id: existing?.id ?? nextId,
@@ -102,46 +261,57 @@ export const arrangementFromAdminInput = (
         ? existing.colors
         : ["Multicolor"],
     date: safeCategory,
-    featured: existing?.featured ?? false,
-    badge: existing?.badge,
+    featured: input.featured,
+    badge,
   };
 };
 
-export const getProductsFromStorage = (): Arrangement[] => {
-  if (typeof window === "undefined") return cloneSeedProducts();
+export const getProductsFromStorage = (): Arrangement[] =>
+  readLocalPayload()?.products ?? cloneSeedProducts();
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return cloneSeedProducts();
+export const getLatestProductsFromPersistence = async (): Promise<Arrangement[]> => {
+  const localPayload = readLocalPayload();
+  const indexedDbPayload = await readIndexedDbPayload();
 
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return cloneSeedProducts();
-    const normalized = parsed
-      .map((item, index) => normalizeProduct(item, index))
-      .filter((item): item is Arrangement => Boolean(item));
-    return normalized.length > 0 ? normalized : cloneSeedProducts();
-  } catch {
-    return cloneSeedProducts();
-  }
+  if (!localPayload && !indexedDbPayload) return cloneSeedProducts();
+  if (!localPayload) return indexedDbPayload?.products ?? cloneSeedProducts();
+  if (!indexedDbPayload) return localPayload.products;
+
+  return indexedDbPayload.updatedAt > localPayload.updatedAt
+    ? indexedDbPayload.products
+    : localPayload.products;
 };
 
-const getStorageErrorMessage = (error: unknown) => {
-  if (error instanceof DOMException && error.name === "QuotaExceededError") {
-    return "No hay espacio suficiente en el navegador para guardar los productos. Usa imagenes mas livianas o limpia datos del sitio.";
-  }
-
-  return "No se pudieron guardar los productos en este navegador.";
-};
-
-export const persistProductsToStorage = (
+export const persistProductsToStorage = async (
   products: Arrangement[]
-): PersistResult => {
+): Promise<PersistResult> => {
   if (typeof window === "undefined") return { ok: true };
 
+  const payload: ProductsStoredPayload = {
+    products,
+    updatedAt: Date.now(),
+  };
+
+  let localError: unknown = null;
+
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-    return { ok: true };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch (error) {
-    return { ok: false, error: getStorageErrorMessage(error) };
+    localError = error;
   }
+
+  const indexedDbSaved = await writeIndexedDbPayload(payload);
+
+  if (!localError) {
+    return { ok: true };
+  }
+
+  if (indexedDbSaved) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    error: getStorageErrorMessage(localError),
+  };
 };

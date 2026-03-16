@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
 import { SearchFilters } from "./components/SearchFilters";
@@ -9,6 +9,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { AdminLogin } from "./components/AdminLogin";
 import type { Arrangement } from "./components/data/arrangements";
 import {
+  getLatestProductsFromPersistence,
   getProductsFromStorage,
   persistProductsToStorage,
 } from "./components/data/productsStore";
@@ -20,10 +21,7 @@ import {
 } from "./components/data/heroStore";
 import { getAdminSession, setAdminSession } from "./components/data/adminAuth";
 import type { ArrangementSearchFilters } from "./components/data/searchFilters";
-import {
-  getSharedStore,
-  syncSharedStorePatch,
-} from "./components/data/sharedStore";
+import { getSharedStore, syncSharedStorePatch } from "./components/data/sharedStore";
 
 const isAdminPath = () => {
   if (typeof window === "undefined") return false;
@@ -31,6 +29,41 @@ const isAdminPath = () => {
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   return path.startsWith("/admin") || hash === "#admin" || hash === "#/admin";
+};
+
+const areProductsEqual = (left: Arrangement, right: Arrangement) =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+const buildProductsPatch = (currentProducts: Arrangement[], nextProducts: Arrangement[]) => {
+  const currentById = new Map(currentProducts.map((product) => [product.id, product]));
+  const nextById = new Map(nextProducts.map((product) => [product.id, product]));
+
+  if (nextProducts.length === currentProducts.length + 1) {
+    const created = nextProducts.find((product) => !currentById.has(product.id));
+    if (created) {
+      return { upsertProduct: created };
+    }
+  }
+
+  if (nextProducts.length + 1 === currentProducts.length) {
+    const removed = currentProducts.find((product) => !nextById.has(product.id));
+    if (removed) {
+      return { deleteProductId: removed.id };
+    }
+  }
+
+  if (nextProducts.length === currentProducts.length) {
+    const changed = nextProducts.filter((product) => {
+      const previous = currentById.get(product.id);
+      return previous ? !areProductsEqual(previous, product) : true;
+    });
+
+    if (changed.length === 1) {
+      return { upsertProduct: changed[0] };
+    }
+  }
+
+  return { products: nextProducts };
 };
 
 export default function App() {
@@ -67,6 +100,19 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
+    void getLatestProductsFromPersistence().then((latestProducts) => {
+      if (!mounted) return;
+      setProducts(latestProducts);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
     void getLatestHeroContentFromPersistence().then((latestContent) => {
       if (!mounted) return;
       setHeroContent(latestContent);
@@ -85,7 +131,7 @@ export default function App() {
 
       if (remote.products) {
         setProducts(remote.products);
-        persistProductsToStorage(remote.products);
+        void persistProductsToStorage(remote.products);
       }
 
       if (remote.heroContent) {
@@ -140,17 +186,27 @@ export default function App() {
   };
 
   const handleProductsChange = async (nextProducts: Arrangement[]) => {
+    const previousProducts = products;
     setProducts(nextProducts);
-    const localResult = persistProductsToStorage(nextProducts);
-    if (!localResult.ok) return localResult;
 
-    const sharedResult = await syncSharedStorePatch({ products: nextProducts });
+    const localResult = await persistProductsToStorage(nextProducts);
+    if (!localResult.ok) {
+      setProducts(previousProducts);
+      await persistProductsToStorage(previousProducts);
+      return localResult;
+    }
+
+    const sharedResult = await syncSharedStorePatch(
+      buildProductsPatch(previousProducts, nextProducts)
+    );
     if (!sharedResult.ok) {
+      setProducts(previousProducts);
+      await persistProductsToStorage(previousProducts);
       return {
         ok: false,
         error:
           sharedResult.error ??
-          "Se guardo en este dispositivo, pero no se sincronizo para otros dispositivos.",
+          "No se pudo sincronizar el catalogo para otros dispositivos.",
       };
     }
 
@@ -158,17 +214,25 @@ export default function App() {
   };
 
   const handleHeroContentChange = async (nextHeroContent: HeroContent) => {
+    const previousHeroContent = heroContent;
     setHeroContent(nextHeroContent);
+
     const localResult = await persistHeroContentToStorage(nextHeroContent);
-    if (!localResult.ok) return localResult;
+    if (!localResult.ok) {
+      setHeroContent(previousHeroContent);
+      await persistHeroContentToStorage(previousHeroContent);
+      return localResult;
+    }
 
     const sharedResult = await syncSharedStorePatch({ heroContent: nextHeroContent });
     if (!sharedResult.ok) {
+      setHeroContent(previousHeroContent);
+      await persistHeroContentToStorage(previousHeroContent);
       return {
         ok: false,
         error:
           sharedResult.error ??
-          "Se guardo en este dispositivo, pero no se sincronizo para otros dispositivos.",
+          "No se pudo sincronizar el banner para otros dispositivos.",
       };
     }
 

@@ -1,4 +1,4 @@
-import {
+﻿import {
   type ChangeEvent,
   type FormEvent,
   useEffect,
@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Pencil,
   Save,
+  Star,
   Trash2,
   Upload,
   XCircle,
@@ -26,6 +27,11 @@ import {
 } from "./data/productsStore";
 import { createProductWhatsAppLink } from "./data/whatsapp";
 import { compressImageFile } from "./data/imageCompression";
+import {
+  DEFAULT_BADGE_BACKGROUND_COLOR,
+  DEFAULT_BADGE_TEXT_COLOR,
+  formatBadgeLabel,
+} from "./data/productBadges";
 
 interface AdminPanelProps {
   products: Arrangement[];
@@ -45,6 +51,12 @@ interface ProductFormState {
   category: string;
   price: string;
   image: string;
+  featured: boolean;
+  badgeEnabled: boolean;
+  badgeText: string;
+  badgeEmoji: string;
+  badgeBackgroundColor: string;
+  badgeTextColor: string;
 }
 
 type BannerMessage = {
@@ -58,6 +70,12 @@ const EMPTY_FORM: ProductFormState = {
   category: "",
   price: "",
   image: "",
+  featured: false,
+  badgeEnabled: false,
+  badgeText: "",
+  badgeEmoji: "",
+  badgeBackgroundColor: DEFAULT_BADGE_BACKGROUND_COLOR,
+  badgeTextColor: DEFAULT_BADGE_TEXT_COLOR,
 };
 
 const formatPrice = (price: number) =>
@@ -66,6 +84,15 @@ const formatPrice = (price: number) =>
     currency: "COP",
     minimumFractionDigits: 0,
   }).format(price);
+
+const pillButtonStyle = (active: boolean) => ({
+  backgroundColor: active ? "#4a6741" : "#f0ebe4",
+  color: active ? "#fdf6f0" : "#5a4a3a",
+  border: "none",
+  cursor: "pointer",
+  fontSize: "13px",
+  fontWeight: 700,
+});
 
 export function AdminPanel({
   products,
@@ -90,6 +117,16 @@ export function AdminPanel({
     () => [...products].sort((a, b) => b.id - a.id),
     [products]
   );
+
+  const badgePreviewLabel =
+    form.badgeEnabled && form.badgeText.trim()
+      ? formatBadgeLabel({
+          text: form.badgeText.trim(),
+          emoji: form.badgeEmoji.trim() || undefined,
+          backgroundColor: form.badgeBackgroundColor,
+          textColor: form.badgeTextColor,
+        })
+      : "";
 
   const updateHeroField = <K extends keyof HeroContent>(
     key: K,
@@ -156,7 +193,7 @@ export function AdminPanel({
     setBannerMessage({ type: "success", text: "Banner principal actualizado." });
   };
 
-  const updateField = (key: keyof ProductFormState, value: string) => {
+  const updateField = (key: keyof ProductFormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (errorMessage) setErrorMessage("");
   };
@@ -180,7 +217,7 @@ export function AdminPanel({
       const compressed = await compressImageFile(file, {
         maxWidth: 1400,
         maxHeight: 1400,
-        targetBytes: 240 * 1024,
+        targetBytes: 220 * 1024,
       });
       updateField("image", compressed.dataUrl);
       setErrorMessage("");
@@ -219,12 +256,29 @@ export function AdminPanel({
       return;
     }
 
+    if (form.badgeEnabled && !form.badgeText.trim()) {
+      setErrorMessage("Si activas la burbuja visual, debes escribir al menos el texto.");
+      return;
+    }
+
     const existing = editingId
       ? products.find((product) => product.id === editingId) ?? null
       : null;
 
     const nextProduct = arrangementFromAdminInput(
-      { name, description, category, image, price },
+      {
+        name,
+        description,
+        category,
+        image,
+        price,
+        featured: form.featured,
+        badgeEnabled: form.badgeEnabled,
+        badgeText: form.badgeText,
+        badgeEmoji: form.badgeEmoji,
+        badgeBackgroundColor: form.badgeBackgroundColor,
+        badgeTextColor: form.badgeTextColor,
+      },
       existing,
       getNextProductId()
     );
@@ -252,6 +306,13 @@ export function AdminPanel({
       category: getProductCategory(product),
       price: String(product.price),
       image: product.images[0] ?? "",
+      featured: product.featured,
+      badgeEnabled: Boolean(product.badge?.text),
+      badgeText: product.badge?.text ?? "",
+      badgeEmoji: product.badge?.emoji ?? "",
+      badgeBackgroundColor:
+        product.badge?.backgroundColor ?? DEFAULT_BADGE_BACKGROUND_COLOR,
+      badgeTextColor: product.badge?.textColor ?? DEFAULT_BADGE_TEXT_COLOR,
     });
     setErrorMessage("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -355,7 +416,7 @@ export function AdminPanel({
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 xl:grid-cols-[430px_1fr] gap-8">
         <section
           className="rounded-3xl p-6 h-fit"
           style={{
@@ -388,7 +449,7 @@ export function AdminPanel({
             <form className="mt-4 flex flex-col gap-4" onSubmit={handleSaveHero}>
               <label className="flex flex-col gap-1.5">
                 <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
-                  Imagen del banner (seccion completa)
+                  Imagen del banner
                 </span>
                 <input
                   type="url"
@@ -489,7 +550,7 @@ export function AdminPanel({
                 marginTop: "4px",
               }}
             >
-              Campos requeridos: titulo, descripcion, imagen, categoria y precio.
+              Ahora puedes destacar productos en Arreglos del mes y crear una burbuja visual personalizada.
             </p>
           </div>
 
@@ -518,9 +579,7 @@ export function AdminPanel({
               </span>
               <textarea
                 value={form.description}
-                onChange={(event) =>
-                  updateField("description", event.target.value)
-                }
+                onChange={(event) => updateField("description", event.target.value)}
                 placeholder="Describe el producto..."
                 rows={4}
                 className="rounded-xl px-4 py-2.5 outline-none resize-none"
@@ -608,6 +667,136 @@ export function AdminPanel({
                 />
               </label>
             </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => updateField("featured", !form.featured)}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl"
+                style={pillButtonStyle(form.featured)}
+              >
+                <Star size={15} />
+                {form.featured ? "Incluido en Arreglos del mes" : "Destacar en Arreglos del mes"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateField("badgeEnabled", !form.badgeEnabled)}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl"
+                style={pillButtonStyle(form.badgeEnabled)}
+              >
+                {form.badgeEnabled ? "Burbuja visual activa" : "Activar burbuja visual"}
+              </button>
+            </div>
+
+            {form.badgeEnabled && (
+              <div
+                className="rounded-2xl p-4 flex flex-col gap-4"
+                style={{ backgroundColor: "#f8f1ea", border: "1px solid #eadbce" }}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3">
+                  <label className="flex flex-col gap-2">
+                    <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                      Texto de la burbuja
+                    </span>
+                    <input
+                      type="text"
+                      value={form.badgeText}
+                      onChange={(event) => updateField("badgeText", event.target.value)}
+                      placeholder="Ej: Mas vendido"
+                      className="rounded-xl px-4 py-2.5 outline-none"
+                      style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fff" }}
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-2">
+                    <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                      Emoji / icono
+                    </span>
+                    <input
+                      type="text"
+                      value={form.badgeEmoji}
+                      onChange={(event) => updateField("badgeEmoji", event.target.value)}
+                      placeholder="Ej: ⭐"
+                      maxLength={6}
+                      className="rounded-xl px-4 py-2.5 outline-none"
+                      style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fff" }}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-2">
+                    <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                      Color de fondo
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={form.badgeBackgroundColor}
+                        onChange={(event) =>
+                          updateField("badgeBackgroundColor", event.target.value)
+                        }
+                        className="w-14 h-11 rounded-xl border-0 bg-transparent cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={form.badgeBackgroundColor}
+                        onChange={(event) =>
+                          updateField("badgeBackgroundColor", event.target.value)
+                        }
+                        className="flex-1 rounded-xl px-4 py-2.5 outline-none"
+                        style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fff" }}
+                      />
+                    </div>
+                  </label>
+
+                  <label className="flex flex-col gap-2">
+                    <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
+                      Color del texto
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={form.badgeTextColor}
+                        onChange={(event) => updateField("badgeTextColor", event.target.value)}
+                        className="w-14 h-11 rounded-xl border-0 bg-transparent cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={form.badgeTextColor}
+                        onChange={(event) => updateField("badgeTextColor", event.target.value)}
+                        className="flex-1 rounded-xl px-4 py-2.5 outline-none"
+                        style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fff" }}
+                      />
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <span style={{ fontSize: "13px", color: "#7a5a4a", fontWeight: 700 }}>
+                    Vista previa de la burbuja
+                  </span>
+                  {badgePreviewLabel ? (
+                    <span
+                      className="px-3 py-1.5 rounded-full"
+                      style={{
+                        backgroundColor: form.badgeBackgroundColor,
+                        color: form.badgeTextColor,
+                        fontSize: "12px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {badgePreviewLabel}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: "12px", color: "#9e7b5a" }}>
+                      Escribe el texto para ver la preview.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {form.image && (
               <div
@@ -719,114 +908,159 @@ export function AdminPanel({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
-              {sortedProducts.map((product) => (
-                <article
-                  key={product.id}
-                  className="rounded-3xl overflow-hidden flex flex-col"
-                  style={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #f0e8e0",
-                    boxShadow: "0 8px 20px rgba(58,46,38,0.08)",
-                  }}
-                >
-                  <div className="h-44 overflow-hidden">
-                    <img
-                      src={product.images[0]}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+              {sortedProducts.map((product) => {
+                const productBadgeLabel = formatBadgeLabel(product.badge);
 
-                  <div className="p-4 flex flex-col gap-3 h-full">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3
+                return (
+                  <article
+                    key={product.id}
+                    className="rounded-3xl overflow-hidden flex flex-col"
+                    style={{
+                      backgroundColor: "#fff",
+                      border: "1px solid #f0e8e0",
+                      boxShadow: "0 8px 20px rgba(58,46,38,0.08)",
+                    }}
+                  >
+                    <div className="h-44 overflow-hidden relative">
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                      {product.badge && productBadgeLabel && (
+                        <div
+                          className="absolute top-3 left-3 px-3 py-1 rounded-full"
                           style={{
-                            fontFamily: "'Playfair Display', serif",
-                            fontSize: "20px",
-                            color: "#3a2e26",
-                            lineHeight: 1.2,
+                            backgroundColor: product.badge.backgroundColor,
+                            color: product.badge.textColor,
+                            fontSize: "11px",
+                            fontWeight: 700,
                           }}
                         >
-                          {product.name}
-                        </h3>
-                        <p style={{ color: "#9e7b5a", fontSize: "12px", marginTop: "2px" }}>
-                          Categoria: {getProductCategory(product)}
-                        </p>
+                          {productBadgeLabel}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 flex flex-col gap-3 h-full">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3
+                            style={{
+                              fontFamily: "'Playfair Display', serif",
+                              fontSize: "20px",
+                              color: "#3a2e26",
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {product.name}
+                          </h3>
+                          <p style={{ color: "#9e7b5a", fontSize: "12px", marginTop: "2px" }}>
+                            Categoria: {getProductCategory(product)}
+                          </p>
+                        </div>
+                        <span
+                          className="px-2.5 py-1 rounded-lg"
+                          style={{
+                            backgroundColor: "#f5ede6",
+                            color: "#5a4a3a",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatPrice(product.price)}
+                        </span>
                       </div>
-                      <span
-                        className="px-2.5 py-1 rounded-lg"
-                        style={{
-                          backgroundColor: "#f5ede6",
-                          color: "#5a4a3a",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {formatPrice(product.price)}
-                      </span>
+
+                      <div className="flex flex-wrap gap-2">
+                        {product.featured ? (
+                          <span
+                            className="px-2.5 py-1 rounded-full"
+                            style={{
+                              backgroundColor: "#e8f2e2",
+                              color: "#2f5a24",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                            }}
+                          >
+                            Arreglos del mes
+                          </span>
+                        ) : (
+                          <span
+                            className="px-2.5 py-1 rounded-full"
+                            style={{
+                              backgroundColor: "#f5ede6",
+                              color: "#7a5a4a",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                            }}
+                          >
+                            Catalogo general
+                          </span>
+                        )}
+                      </div>
+
+                      <p style={{ fontSize: "13px", color: "#6b5044", lineHeight: 1.6 }}>
+                        {product.description}
+                      </p>
+
+                      <div className="mt-auto grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+                        <a
+                          href={createProductWhatsAppLink(product.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl"
+                          style={{
+                            backgroundColor: "#4a6741",
+                            color: "#fdf6f0",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                          }}
+                        >
+                          <MessageCircle size={13} />
+                          WhatsApp
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(product)}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl"
+                          style={{
+                            backgroundColor: "#f0ebe4",
+                            color: "#4a6741",
+                            border: "none",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Pencil size={13} />
+                          Editar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(product)}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl"
+                          style={{
+                            backgroundColor: "#fbe4dc",
+                            color: "#8a3d2c",
+                            border: "none",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Trash2 size={13} />
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
-
-                    <p style={{ fontSize: "13px", color: "#6b5044", lineHeight: 1.6 }}>
-                      {product.description}
-                    </p>
-
-                    <div className="mt-auto grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
-                      <a
-                        href={createProductWhatsAppLink(product.name)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl"
-                        style={{
-                          backgroundColor: "#4a6741",
-                          color: "#fdf6f0",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                        }}
-                      >
-                        <MessageCircle size={13} />
-                        WhatsApp
-                      </a>
-
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(product)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl"
-                        style={{
-                          backgroundColor: "#f0ebe4",
-                          color: "#4a6741",
-                          border: "none",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Pencil size={13} />
-                        Editar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(product)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl"
-                        style={{
-                          backgroundColor: "#fbe4dc",
-                          color: "#8a3d2c",
-                          border: "none",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Trash2 size={13} />
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
