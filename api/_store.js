@@ -1,42 +1,44 @@
-import { get, put } from "@vercel/blob";
+import { createClient } from "@supabase/supabase-js";
 
-const STORE_PATH = "rame-shared-store.json";
-const DEFAULT_ACCESS_ORDER = ["private", "public"];
+const DEFAULT_TABLE_NAME = "shared_store";
+const DEFAULT_STORE_KEY = "main";
 
-const hasBlobToken = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
-
-const getBlobAccessModes = () => {
-  const configuredAccess = process.env.BLOB_STORE_ACCESS?.trim().toLowerCase();
-  if (configuredAccess === "private" || configuredAccess === "public") {
-    return [
-      configuredAccess,
-      ...DEFAULT_ACCESS_ORDER.filter((access) => access !== configuredAccess),
-    ];
-  }
-
-  return DEFAULT_ACCESS_ORDER;
-};
+let cachedClient = null;
+let cachedClientKey = "";
 
 const getErrorMessage = (error, fallback) =>
   error instanceof Error && error.message ? error.message : fallback;
 
-const isAccessMismatchError = (error) => {
-  const message = getErrorMessage(error, "").toLowerCase();
-  return (
-    message.includes("private store") ||
-    message.includes("public store") ||
-    message.includes("public access") ||
-    message.includes("private access")
-  );
+const getSupabaseConfig = () => {
+  const url = process.env.SUPABASE_URL?.trim() ?? "";
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  const table = process.env.SUPABASE_SHARED_STORE_TABLE?.trim() || DEFAULT_TABLE_NAME;
+  const storeKey = process.env.SUPABASE_SHARED_STORE_KEY?.trim() || DEFAULT_STORE_KEY;
+
+  return {
+    url,
+    serviceRoleKey,
+    table,
+    storeKey,
+    isConfigured: Boolean(url && serviceRoleKey),
+  };
 };
 
-const parseBlobJson = async (stream) => {
-  const response = new Response(stream, {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
+const getSupabaseAdminClient = (config) => {
+  const cacheKey = `${config.url}::${config.serviceRoleKey}`;
+  if (cachedClient && cachedClientKey === cacheKey) {
+    return cachedClient;
+  }
+
+  cachedClient = createClient(config.url, config.serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
     },
   });
-  return response.json();
+  cachedClientKey = cacheKey;
+  return cachedClient;
 };
 
 const safeStorePayload = (value) => {
@@ -53,107 +55,98 @@ const safeStorePayload = (value) => {
   return result;
 };
 
+const mapRowToStore = (row) => {
+  if (!row || typeof row !== "object") {
+    return {};
+  }
+
+  return safeStorePayload({
+    heroContent: row.hero_content,
+    products: row.products,
+  });
+};
+
 export const readSharedStore = async () => {
-  if (!hasBlobToken()) {
+  const config = getSupabaseConfig();
+  if (!config.isConfigured) {
     return {
       ok: false,
       storageEnabled: false,
-      error: "BLOB_READ_WRITE_TOKEN no configurado.",
+      error: "SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados.",
       store: {},
     };
   }
 
   try {
-    let lastError = null;
+    const supabase = getSupabaseAdminClient(config);
+    const { data, error } = await supabase
+      .from(config.table)
+      .select("hero_content,products,updated_at")
+      .eq("store_key", config.storeKey)
+      .limit(1);
 
-    for (const access of getBlobAccessModes()) {
-      try {
-        const blobResult = await get(STORE_PATH, {
-          access,
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-          useCache: false,
-        });
-
-        if (!blobResult) {
-          return {
-            ok: true,
-            storageEnabled: true,
-            store: {},
-          };
-        }
-
-        if (blobResult.statusCode !== 200 || !blobResult.stream) {
-          return {
-            ok: true,
-            storageEnabled: true,
-            store: {},
-          };
-        }
-
-        const rawPayload = await parseBlobJson(blobResult.stream);
-        return {
-          ok: true,
-          storageEnabled: true,
-          store: safeStorePayload(rawPayload),
-        };
-      } catch (error) {
-        lastError = error;
-        if (isAccessMismatchError(error)) {
-          continue;
-        }
-        break;
-      }
+    if (error) {
+      throw error;
     }
 
-    throw lastError ?? new Error("No se pudo leer el store compartido.");
+    const row = Array.isArray(data) ? data[0] : null;
+    return {
+      ok: true,
+      storageEnabled: true,
+      store: mapRowToStore(row),
+    };
   } catch (error) {
     return {
       ok: false,
       storageEnabled: true,
-      error: getErrorMessage(error, "Error leyendo store compartido."),
+      error: getErrorMessage(
+        error,
+        "Error leyendo store compartido desde Supabase."
+      ),
       store: {},
     };
   }
 };
 
 export const writeSharedStore = async (nextStore) => {
-  if (!hasBlobToken()) {
+  const config = getSupabaseConfig();
+  if (!config.isConfigured) {
     return {
       ok: false,
       storageEnabled: false,
-      error: "BLOB_READ_WRITE_TOKEN no configurado.",
+      error: "SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados.",
     };
   }
 
   try {
-    let lastError = null;
+    const supabase = getSupabaseAdminClient(config);
+    const safeStore = safeStorePayload(nextStore);
+    const row = {
+      store_key: config.storeKey,
+      hero_content: safeStore.heroContent ?? {},
+      products: safeStore.products ?? [],
+      updated_at: new Date().toISOString(),
+    };
 
-    for (const access of getBlobAccessModes()) {
-      try {
-        await put(STORE_PATH, JSON.stringify(safeStorePayload(nextStore)), {
-          access,
-          addRandomSuffix: false,
-          allowOverwrite: true,
-          contentType: "application/json; charset=utf-8",
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-        });
+    const { error } = await supabase
+      .from(config.table)
+      .upsert(row, { onConflict: "store_key" })
+      .select("store_key")
+      .single();
 
-        return { ok: true, storageEnabled: true };
-      } catch (error) {
-        lastError = error;
-        if (isAccessMismatchError(error)) {
-          continue;
-        }
-        break;
-      }
+    if (error) {
+      throw error;
     }
 
-    throw lastError ?? new Error("No se pudo escribir el store compartido.");
+    return { ok: true, storageEnabled: true };
   } catch (error) {
     return {
       ok: false,
       storageEnabled: true,
-      error: getErrorMessage(error, "Error escribiendo store compartido."),
+      error: getErrorMessage(
+        error,
+        "Error escribiendo store compartido en Supabase."
+      ),
     };
   }
 };

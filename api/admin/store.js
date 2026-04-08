@@ -1,4 +1,4 @@
-﻿import {
+import {
   getAuthConfig,
   parseCookies,
   readJsonBody,
@@ -119,7 +119,7 @@ export default async function handler(req, res) {
       ok: false,
       error:
         writeResult.error ??
-        "No se pudo guardar el contenido compartido. Verifica BLOB_READ_WRITE_TOKEN.",
+        "No se pudo guardar el contenido compartido. Verifica SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y la tabla configurada.",
     });
   }
 
