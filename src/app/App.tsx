@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
 import { SearchFilters } from "./components/SearchFilters";
@@ -9,19 +9,19 @@ import { AdminPanel } from "./components/AdminPanel";
 import { AdminLogin } from "./components/AdminLogin";
 import type { Arrangement } from "./components/data/arrangements";
 import {
-  getLatestProductsFromPersistence,
   getProductsFromStorage,
   persistProductsToStorage,
 } from "./components/data/productsStore";
 import {
   type HeroContent,
   getHeroContentFromStorage,
-  getLatestHeroContentFromPersistence,
   persistHeroContentToStorage,
 } from "./components/data/heroStore";
 import { getAdminSession, setAdminSession } from "./components/data/adminAuth";
 import type { ArrangementSearchFilters } from "./components/data/searchFilters";
 import { getSharedStore, syncSharedStorePatch } from "./components/data/sharedStore";
+
+const SHARED_STORE_SYNC_INTERVAL_MS = 15000;
 
 const isAdminPath = () => {
   if (typeof window === "undefined") return false;
@@ -32,6 +32,16 @@ const isAdminPath = () => {
 };
 
 const areProductsEqual = (left: Arrangement, right: Arrangement) =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+const areProductListsEqual = (left: Arrangement[], right: Arrangement[]) =>
+  left.length === right.length &&
+  left.every((product, index) => {
+    const rightProduct = right[index];
+    return rightProduct ? areProductsEqual(product, rightProduct) : false;
+  });
+
+const areHeroContentsEqual = (left: HeroContent, right: HeroContent) =>
   JSON.stringify(left) === JSON.stringify(right);
 
 const buildProductsPatch = (currentProducts: Arrangement[], nextProducts: Arrangement[]) => {
@@ -67,9 +77,7 @@ const buildProductsPatch = (currentProducts: Arrangement[], nextProducts: Arrang
 };
 
 export default function App() {
-  const [products, setProducts] = useState<Arrangement[]>(() =>
-    getProductsFromStorage()
-  );
+  const [products, setProducts] = useState<Arrangement[]>(() => getProductsFromStorage());
   const [heroContent, setHeroContent] = useState<HeroContent>(() =>
     getHeroContentFromStorage()
   );
@@ -81,8 +89,18 @@ export default function App() {
   const heroRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
+  const productsRef = useRef(products);
+  const heroContentRef = useRef(heroContent);
   const [searchFilters, setSearchFilters] =
     useState<ArrangementSearchFilters | null>(null);
+
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
+  useEffect(() => {
+    heroContentRef.current = heroContent;
+  }, [heroContent]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -98,50 +116,69 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     let mounted = true;
+    let syncing = false;
 
-    void getLatestProductsFromPersistence().then((latestProducts) => {
-      if (!mounted) return;
-      setProducts(latestProducts);
-    });
+    const syncFromSharedStore = async () => {
+      if (!mounted || syncing) return;
+      syncing = true;
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+      try {
+        const remote = await getSharedStore();
+        if (!mounted || !remote.ok) return;
 
-  useEffect(() => {
-    let mounted = true;
+        if (
+          remote.products &&
+          !areProductListsEqual(productsRef.current, remote.products)
+        ) {
+          setProducts(remote.products);
+          productsRef.current = remote.products;
+          await persistProductsToStorage(remote.products);
+        }
 
-    void getLatestHeroContentFromPersistence().then((latestContent) => {
-      if (!mounted) return;
-      setHeroContent(latestContent);
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    void getSharedStore().then((remote) => {
-      if (!mounted || !remote.ok) return;
-
-      if (remote.products) {
-        setProducts(remote.products);
-        void persistProductsToStorage(remote.products);
+        if (
+          remote.heroContent &&
+          !areHeroContentsEqual(heroContentRef.current, remote.heroContent)
+        ) {
+          setHeroContent(remote.heroContent);
+          heroContentRef.current = remote.heroContent;
+          await persistHeroContentToStorage(remote.heroContent);
+        }
+      } finally {
+        syncing = false;
       }
+    };
 
-      if (remote.heroContent) {
-        setHeroContent(remote.heroContent);
-        void persistHeroContentToStorage(remote.heroContent);
+    void syncFromSharedStore();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !isAdminPath()) {
+        void syncFromSharedStore();
       }
-    });
+    };
+
+    const handleWindowFocus = () => {
+      if (!isAdminPath()) {
+        void syncFromSharedStore();
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (!isAdminPath()) {
+        void syncFromSharedStore();
+      }
+    }, SHARED_STORE_SYNC_INTERVAL_MS);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleWindowFocus);
 
     return () => {
       mounted = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleWindowFocus);
     };
   }, []);
 
@@ -186,12 +223,14 @@ export default function App() {
   };
 
   const handleProductsChange = async (nextProducts: Arrangement[]) => {
-    const previousProducts = products;
+    const previousProducts = productsRef.current;
     setProducts(nextProducts);
+    productsRef.current = nextProducts;
 
     const localResult = await persistProductsToStorage(nextProducts);
     if (!localResult.ok) {
       setProducts(previousProducts);
+      productsRef.current = previousProducts;
       await persistProductsToStorage(previousProducts);
       return localResult;
     }
@@ -201,6 +240,7 @@ export default function App() {
     );
     if (!sharedResult.ok) {
       setProducts(previousProducts);
+      productsRef.current = previousProducts;
       await persistProductsToStorage(previousProducts);
       return {
         ok: false,
@@ -214,12 +254,14 @@ export default function App() {
   };
 
   const handleHeroContentChange = async (nextHeroContent: HeroContent) => {
-    const previousHeroContent = heroContent;
+    const previousHeroContent = heroContentRef.current;
     setHeroContent(nextHeroContent);
+    heroContentRef.current = nextHeroContent;
 
     const localResult = await persistHeroContentToStorage(nextHeroContent);
     if (!localResult.ok) {
       setHeroContent(previousHeroContent);
+      heroContentRef.current = previousHeroContent;
       await persistHeroContentToStorage(previousHeroContent);
       return localResult;
     }
@@ -227,6 +269,7 @@ export default function App() {
     const sharedResult = await syncSharedStorePatch({ heroContent: nextHeroContent });
     if (!sharedResult.ok) {
       setHeroContent(previousHeroContent);
+      heroContentRef.current = previousHeroContent;
       await persistHeroContentToStorage(previousHeroContent);
       return {
         ok: false,
@@ -317,6 +360,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
