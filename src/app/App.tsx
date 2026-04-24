@@ -76,6 +76,39 @@ const buildProductsPatch = (currentProducts: Arrangement[], nextProducts: Arrang
   return { products: nextProducts };
 };
 
+const InitialStoreLoading = () => (
+  <div
+    className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
+    style={{
+      fontFamily: "'Lato', sans-serif",
+      backgroundColor: "#fdf6f0",
+      color: "#5a4a3a",
+    }}
+  >
+    <div
+      className="w-14 h-14 rounded-full mb-5"
+      style={{
+        border: "3px solid #e8d5c4",
+        borderTopColor: "#4a6741",
+        animation: "spin 0.8s linear infinite",
+      }}
+    />
+    <h1
+      style={{
+        fontFamily: "'Playfair Display', serif",
+        fontSize: "28px",
+        color: "#3a2e26",
+      }}
+    >
+      Cargando catalogo
+    </h1>
+    <p style={{ marginTop: "8px", fontSize: "14px", color: "#9e7b5a" }}>
+      Estamos trayendo los productos y banners actualizados.
+    </p>
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
+
 export default function App() {
   const [products, setProducts] = useState<Arrangement[]>(() => getProductsFromStorage());
   const [heroContent, setHeroContent] = useState<HeroContent>(() =>
@@ -85,6 +118,7 @@ export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(
     null
   );
+  const [isInitialStoreSyncing, setIsInitialStoreSyncing] = useState(true);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
@@ -121,7 +155,7 @@ export default function App() {
     let mounted = true;
     let syncing = false;
 
-    const syncFromSharedStore = async () => {
+    const syncFromSharedStore = async (isInitialSync = false) => {
       if (!mounted || syncing) return;
       syncing = true;
 
@@ -148,10 +182,13 @@ export default function App() {
         }
       } finally {
         syncing = false;
+        if (isInitialSync && mounted) {
+          setIsInitialStoreSyncing(false);
+        }
       }
     };
 
-    void syncFromSharedStore();
+    void syncFromSharedStore(true);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && !isAdminPath()) {
@@ -326,6 +363,10 @@ export default function App() {
         onLogout={handleAdminLogout}
       />
     );
+  }
+
+  if (isInitialStoreSyncing) {
+    return <InitialStoreLoading />;
   }
 
   return (
