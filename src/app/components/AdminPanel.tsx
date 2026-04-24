@@ -12,6 +12,7 @@ import {
   LogOut,
   MessageCircle,
   Pencil,
+  RefreshCw,
   Save,
   Star,
   Trash2,
@@ -27,7 +28,11 @@ import {
   PRODUCT_PRICE_MIN,
 } from "./data/productsStore";
 import { createProductWhatsAppLink } from "./data/whatsapp";
-import { compressImageFile } from "./data/imageCompression";
+import {
+  compressImageFile,
+  compressStoredImageToWebP,
+  isStoredImageConvertibleToWebP,
+} from "./data/imageCompression";
 import {
   DEFAULT_BADGE_BACKGROUND_COLOR,
   DEFAULT_BADGE_TEXT_COLOR,
@@ -64,6 +69,14 @@ type BannerMessage = {
   type: "success" | "error";
   text: string;
 } | null;
+
+type ImageConversionOptions = NonNullable<Parameters<typeof compressStoredImageToWebP>[1]>;
+
+interface ImageConversionStats {
+  converted: number;
+  skipped: number;
+  failed: number;
+}
 
 const EMPTY_FORM: ProductFormState = {
   name: "",
@@ -116,6 +129,9 @@ const pillButtonStyle = (active: boolean) => ({
   fontWeight: 700,
 });
 
+const areStringListsEqual = (left: string[], right: string[]) =>
+  left.length === right.length && left.every((item, index) => item === right[index]);
+
 export function AdminPanel({
   products,
   onProductsChange,
@@ -126,12 +142,14 @@ export function AdminPanel({
   const [heroForm, setHeroForm] = useState<HeroContent>(() => createHeroFormState(heroContent));
   const [bannerMessage, setBannerMessage] = useState<BannerMessage>(null);
   const [featuredLabelMessage, setFeaturedLabelMessage] = useState<BannerMessage>(null);
+  const [imageFormatMessage, setImageFormatMessage] = useState<BannerMessage>(null);
   const [featuredLabelForm, setFeaturedLabelForm] = useState(() => heroContent.featuredTabLabel);
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [compressingHeroImageIndex, setCompressingHeroImageIndex] = useState<number | null>(null);
   const [compressingProductImage, setCompressingProductImage] = useState(false);
+  const [convertingStoredImages, setConvertingStoredImages] = useState(false);
   const heroBannerSignature = JSON.stringify(getHeroEditorImages(heroContent));
   const previousHeroBannerSignatureRef = useRef(heroBannerSignature);
 
@@ -225,7 +243,7 @@ export function AdminPanel({
       updateHeroBannerAt(index, compressed.dataUrl);
       setBannerMessage({
         type: "success",
-        text: `Banner ${index + 1} comprimido automaticamente a ${Math.round(
+        text: `Banner ${index + 1} convertido a WebP y comprimido a ${Math.round(
           compressed.bytes / 1024
         )} KB.`,
       });
@@ -333,6 +351,135 @@ export function AdminPanel({
       setErrorMessage(message);
     } finally {
       setCompressingProductImage(false);
+    }
+  };
+
+  const convertStoredImage = async (
+    image: string,
+    options: ImageConversionOptions,
+    stats: ImageConversionStats
+  ) => {
+    const trimmedImage = image.trim();
+    if (!isStoredImageConvertibleToWebP(trimmedImage)) {
+      stats.skipped += 1;
+      return image;
+    }
+
+    try {
+      const converted = await compressStoredImageToWebP(trimmedImage, options);
+      if (converted.dataUrl === trimmedImage) {
+        stats.skipped += 1;
+        return image;
+      }
+
+      stats.converted += 1;
+      return converted.dataUrl;
+    } catch {
+      stats.failed += 1;
+      return image;
+    }
+  };
+
+  const handleConvertStoredImages = async () => {
+    if (convertingStoredImages) return;
+
+    setConvertingStoredImages(true);
+    setImageFormatMessage(null);
+
+    const stats: ImageConversionStats = {
+      converted: 0,
+      skipped: 0,
+      failed: 0,
+    };
+
+    try {
+      const currentBannerImages = getHeroEditorImages(heroContent);
+      const nextBannerImages = await Promise.all(
+        currentBannerImages.map((image) =>
+          convertStoredImage(
+            image,
+            { maxWidth: 1920, maxHeight: 1920, targetBytes: 320 * 1024 },
+            stats
+          )
+        )
+      );
+      const nextHeroContent: HeroContent = {
+        ...heroContent,
+        bannerImages: nextBannerImages,
+        bannerImage: nextBannerImages[0] ?? "",
+      };
+
+      const nextProducts = await Promise.all(
+        products.map(async (product) => ({
+          ...product,
+          images: await Promise.all(
+            product.images.map((image) =>
+              convertStoredImage(
+                image,
+                { maxWidth: 1400, maxHeight: 1400, targetBytes: 220 * 1024 },
+                stats
+              )
+            )
+          ),
+        }))
+      );
+
+      const heroChanged = !areStringListsEqual(currentBannerImages, nextBannerImages);
+      const productsChanged = JSON.stringify(products) !== JSON.stringify(nextProducts);
+
+      if (!heroChanged && !productsChanged) {
+        setImageFormatMessage({
+          type: stats.failed > 0 ? "error" : "success",
+          text:
+            stats.failed > 0
+              ? `No se convirtieron imagenes. ${stats.failed} imagen(es) no se pudieron procesar.`
+              : "Las imagenes actuales ya estan en WebP o son URLs externas.",
+        });
+        return;
+      }
+
+      if (heroChanged) {
+        const heroResult = await onHeroContentChange(nextHeroContent);
+        if (!heroResult.ok) {
+          setImageFormatMessage({
+            type: "error",
+            text: heroResult.error ?? "No se pudo guardar el banner convertido.",
+          });
+          return;
+        }
+        setHeroForm(createHeroFormState(nextHeroContent));
+      }
+
+      if (productsChanged) {
+        const productsResult = await onProductsChange(nextProducts);
+        if (!productsResult.ok) {
+          setImageFormatMessage({
+            type: "error",
+            text: productsResult.error ?? "No se pudieron guardar los productos convertidos.",
+          });
+          return;
+        }
+
+        if (editingId) {
+          const editedProduct = nextProducts.find((product) => product.id === editingId);
+          if (editedProduct) {
+            setForm((prev) => ({
+              ...prev,
+              image: editedProduct.images[0] ?? prev.image,
+            }));
+          }
+        }
+      }
+
+      setImageFormatMessage({
+        type: stats.failed > 0 ? "error" : "success",
+        text:
+          stats.failed > 0
+            ? `${stats.converted} imagen(es) convertidas a WebP. ${stats.failed} no se pudieron procesar.`
+            : `${stats.converted} imagen(es) convertidas y guardadas en WebP.`,
+      });
+    } finally {
+      setConvertingStoredImages(false);
     }
   };
 
@@ -749,6 +896,62 @@ export function AdminPanel({
                   Guardar categoria destacada
                 </button>
               </form>
+            </div>
+
+            <div
+              className="mt-6 pt-6"
+              style={{ borderTop: "1px solid #efe2d6" }}
+            >
+              <h3
+                style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontSize: "20px",
+                  color: "#3a2e26",
+                }}
+              >
+                Formato de imagenes
+              </h3>
+              <p
+                style={{
+                  fontFamily: "'Lato', sans-serif",
+                  fontSize: "13px",
+                  color: "#9e7b5a",
+                  marginTop: "4px",
+                }}
+              >
+                Las nuevas subidas se guardan automaticamente como WebP.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleConvertStoredImages}
+                disabled={convertingStoredImages}
+                className="mt-4 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl w-fit"
+                style={{
+                  backgroundColor: convertingStoredImages ? "#d9c9bc" : "#4a6741",
+                  color: "#fdf6f0",
+                  border: "none",
+                  fontWeight: 700,
+                  cursor: convertingStoredImages ? "not-allowed" : "pointer",
+                }}
+              >
+                <RefreshCw size={15} />
+                {convertingStoredImages ? "Convirtiendo..." : "Convertir actuales a WebP"}
+              </button>
+
+              {imageFormatMessage && (
+                <p
+                  className="mt-3 px-3 py-2 rounded-xl"
+                  style={{
+                    backgroundColor:
+                      imageFormatMessage.type === "success" ? "#eaf4e5" : "#fbe4dc",
+                    color: imageFormatMessage.type === "success" ? "#2e5c22" : "#8a3d2c",
+                    fontSize: "13px",
+                  }}
+                >
+                  {imageFormatMessage.text}
+                </p>
+              )}
             </div>
           </div>
 
