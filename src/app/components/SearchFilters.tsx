@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, SlidersHorizontal, ChevronDown, X } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
 import {
   COLOR_OPTIONS,
   createDefaultArrangementFilters,
@@ -57,11 +57,12 @@ export function SearchFilters({ onFilter }: SearchFiltersProps) {
     filters.priceRange;
 
   return (
-    <section className="w-full py-10 px-6" style={{ backgroundColor: "#fdf6f0" }}>
+    <section className="w-full py-10 px-4 sm:px-6" style={{ backgroundColor: "#fdf6f0" }}>
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-3 mb-6 justify-center">
-          <div className="w-8 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
+        <div className="flex items-center gap-3 mb-6 justify-center text-center">
+          <div className="hidden sm:block w-8 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
           <span
+            className="max-w-[260px] sm:max-w-none"
             style={{
               fontFamily: "'Lato', sans-serif",
               fontSize: "11px",
@@ -73,198 +74,139 @@ export function SearchFilters({ onFilter }: SearchFiltersProps) {
           >
             Encuentra tu arreglo perfecto
           </span>
-          <div className="w-8 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
+          <div className="hidden sm:block w-8 h-[1px]" style={{ backgroundColor: "#c9a96e" }} />
         </div>
 
         <div
-          className="flex items-center gap-3 rounded-2xl px-5 py-4 mb-4 shadow-sm"
+          className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 rounded-2xl px-4 sm:px-5 py-4 mb-4 shadow-sm"
           style={{ backgroundColor: "#fff", border: "1.5px solid #e8d5c4" }}
         >
-          <Search size={20} color="#9e7b5a" />
-          <input
-            type="text"
-            placeholder="Busca por fecha, flor, ocasión, color..."
-            value={filters.search}
-            onChange={(event) => updateFilter("search", event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && handleSearch()}
-            className="flex-1 outline-none bg-transparent"
-            style={{
-              fontFamily: "'Lato', sans-serif",
-              fontSize: "15px",
-              color: "#3a2e26",
-            }}
-          />
-
-          {filters.search && (
-            <button
-              type="button"
-              onClick={() => updateFilter("search", "")}
-              style={{ background: "none", border: "none", cursor: "pointer" }}
-            >
-              <X size={16} color="#9e7b5a" />
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowFilters((previous) => !previous)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl transition-colors duration-200"
-            style={{
-              backgroundColor: showFilters ? "#4a6741" : "#f0ebe4",
-              color: showFilters ? "#fdf6f0" : "#4a6741",
-              fontFamily: "'Lato', sans-serif",
-              fontSize: "13px",
-              fontWeight: 700,
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            <SlidersHorizontal size={15} />
-            Filtros
-            <ChevronDown
-              size={13}
+          <div className="min-w-0 flex items-center gap-3">
+            <Search size={20} color="#9e7b5a" className="shrink-0" />
+            <input
+              type="text"
+              placeholder="Busca por fecha, flor, ocasion, color..."
+              value={filters.search}
+              onChange={(event) => updateFilter("search", event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && handleSearch()}
+              className="min-w-0 flex-1 outline-none bg-transparent"
               style={{
-                transform: showFilters ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.2s",
+                fontFamily: "'Lato', sans-serif",
+                fontSize: "15px",
+                color: "#3a2e26",
               }}
             />
-          </button>
 
-          <button
-            type="button"
-            onClick={handleSearch}
-            className="px-6 py-2 rounded-xl transition-all duration-200 hover:shadow-md hover:opacity-90"
-            style={{
-              backgroundColor: "#4a6741",
-              color: "#fdf6f0",
-              fontFamily: "'Lato', sans-serif",
-              fontSize: "13px",
-              fontWeight: 700,
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Buscar
-          </button>
+            {filters.search && (
+              <button
+                type="button"
+                onClick={() => updateFilter("search", "")}
+                className="shrink-0"
+                style={{ background: "none", border: "none", cursor: "pointer" }}
+              >
+                <X size={16} color="#9e7b5a" />
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:contents">
+            <button
+              type="button"
+              onClick={() => setShowFilters((previous) => !previous)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-colors duration-200"
+              style={{
+                backgroundColor: showFilters ? "#4a6741" : "#f0ebe4",
+                color: showFilters ? "#fdf6f0" : "#4a6741",
+                fontFamily: "'Lato', sans-serif",
+                fontSize: "13px",
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <SlidersHorizontal size={15} />
+              Filtros
+              <ChevronDown
+                size={13}
+                style={{
+                  transform: showFilters ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                }}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSearch}
+              className="px-4 sm:px-6 py-2.5 rounded-xl transition-all duration-200 hover:shadow-md hover:opacity-90"
+              style={{
+                backgroundColor: "#4a6741",
+                color: "#fdf6f0",
+                fontFamily: "'Lato', sans-serif",
+                fontSize: "13px",
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Buscar
+            </button>
+          </div>
         </div>
 
         {showFilters && (
           <div
-            className="rounded-2xl p-6 shadow-sm"
+            className="rounded-2xl p-4 sm:p-6 shadow-sm"
             style={{ backgroundColor: "#fff", border: "1.5px solid #e8d5c4" }}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div>
-                <p
-                  style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#3a2e26",
-                    marginBottom: "10px",
-                  }}
-                >
-                  Fecha especial
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {DATE_OPTIONS.map((option) => (
-                    <Chip
-                      key={option}
-                      label={option}
-                      active={filters.date === option}
-                      onClick={() =>
-                        updateFilter("date", filters.date === option ? "" : option)
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
+              <FilterGroup title="Fecha especial">
+                {DATE_OPTIONS.map((option) => (
+                  <Chip
+                    key={option}
+                    label={option}
+                    active={filters.date === option}
+                    onClick={() => updateFilter("date", filters.date === option ? "" : option)}
+                  />
+                ))}
+              </FilterGroup>
 
-              <div>
-                <p
-                  style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#3a2e26",
-                    marginBottom: "10px",
-                  }}
-                >
-                  Tipo de flor
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {FLOWER_OPTIONS.map((option) => (
-                    <Chip
-                      key={option}
-                      label={option}
-                      active={filters.flowers.includes(option)}
-                      onClick={() => toggleChip("flowers", option)}
-                    />
-                  ))}
-                </div>
-              </div>
+              <FilterGroup title="Tipo de flor">
+                {FLOWER_OPTIONS.map((option) => (
+                  <Chip
+                    key={option}
+                    label={option}
+                    active={filters.flowers.includes(option)}
+                    onClick={() => toggleChip("flowers", option)}
+                  />
+                ))}
+              </FilterGroup>
 
-              <div>
-                <p
-                  style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#3a2e26",
-                    marginBottom: "10px",
-                  }}
-                >
-                  Ocasión
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {OCCASION_OPTIONS.map((option) => (
-                    <Chip
-                      key={option}
-                      label={option}
-                      active={filters.occasion.includes(option)}
-                      onClick={() => toggleChip("occasion", option)}
-                    />
-                  ))}
-                </div>
-              </div>
+              <FilterGroup title="Ocasion">
+                {OCCASION_OPTIONS.map((option) => (
+                  <Chip
+                    key={option}
+                    label={option}
+                    active={filters.occasion.includes(option)}
+                    onClick={() => toggleChip("occasion", option)}
+                  />
+                ))}
+              </FilterGroup>
 
               <div className="flex flex-col gap-4">
-                <div>
-                  <p
-                    style={{
-                      fontFamily: "'Playfair Display', serif",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "#3a2e26",
-                      marginBottom: "10px",
-                    }}
-                  >
-                    Colores
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {COLOR_OPTIONS.map((option) => (
-                      <Chip
-                        key={option}
-                        label={option}
-                        active={filters.colors.includes(option)}
-                        onClick={() => toggleChip("colors", option)}
-                      />
-                    ))}
-                  </div>
-                </div>
+                <FilterGroup title="Colores">
+                  {COLOR_OPTIONS.map((option) => (
+                    <Chip
+                      key={option}
+                      label={option}
+                      active={filters.colors.includes(option)}
+                      onClick={() => toggleChip("colors", option)}
+                    />
+                  ))}
+                </FilterGroup>
 
                 <div>
-                  <p
-                    style={{
-                      fontFamily: "'Playfair Display', serif",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "#3a2e26",
-                      marginBottom: "10px",
-                    }}
-                  >
-                    Rango de precio
-                  </p>
+                  <FilterTitle>Rango de precio</FilterTitle>
                   <select
                     value={filters.priceRange}
                     onChange={(event) => updateFilter("priceRange", event.target.value)}
@@ -288,13 +230,14 @@ export function SearchFilters({ onFilter }: SearchFiltersProps) {
             </div>
 
             <div
-              className="flex items-center justify-between mt-6 pt-4"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-6 pt-4"
               style={{ borderTop: "1px solid #f0e8e0" }}
             >
-              {hasActiveFilters && (
+              {hasActiveFilters ? (
                 <button
                   type="button"
                   onClick={clearAll}
+                  className="w-fit"
                   style={{
                     fontFamily: "'Lato', sans-serif",
                     fontSize: "13px",
@@ -307,9 +250,11 @@ export function SearchFilters({ onFilter }: SearchFiltersProps) {
                 >
                   Limpiar filtros
                 </button>
+              ) : (
+                <span />
               )}
 
-              <div className="flex items-center gap-3 ml-auto">
+              <div className="flex flex-col xs:flex-row sm:items-center gap-2 sm:gap-3 sm:ml-auto">
                 <span
                   style={{
                     fontFamily: "'Lato', sans-serif",
@@ -324,7 +269,7 @@ export function SearchFilters({ onFilter }: SearchFiltersProps) {
                   onChange={(event) =>
                     updateFilter("sortBy", event.target.value as ArrangementSortBy)
                   }
-                  className="rounded-xl px-3 py-2 outline-none"
+                  className="w-full sm:w-auto rounded-xl px-3 py-2 outline-none"
                   style={{
                     border: "1.5px solid #e8d5c4",
                     fontFamily: "'Lato', sans-serif",
@@ -333,10 +278,10 @@ export function SearchFilters({ onFilter }: SearchFiltersProps) {
                     backgroundColor: "#fdf9f6",
                   }}
                 >
-                  <option value="recent">Más recientes</option>
+                  <option value="recent">Mas recientes</option>
                   <option value="price-asc">Menor precio</option>
                   <option value="price-desc">Mayor precio</option>
-                  <option value="popular">Más vendidos</option>
+                  <option value="popular">Mas vendidos</option>
                 </select>
               </div>
             </div>
@@ -344,6 +289,31 @@ export function SearchFilters({ onFilter }: SearchFiltersProps) {
         )}
       </div>
     </section>
+  );
+}
+
+function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <FilterTitle>{title}</FilterTitle>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
+
+function FilterTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        fontFamily: "'Playfair Display', serif",
+        fontSize: "13px",
+        fontWeight: 600,
+        color: "#3a2e26",
+        marginBottom: "10px",
+      }}
+    >
+      {children}
+    </p>
   );
 }
 
