@@ -21,7 +21,7 @@ import { getAdminSession, setAdminSession } from "./components/data/adminAuth";
 import type { ArrangementSearchFilters } from "./components/data/searchFilters";
 import { getSharedStore, syncSharedStorePatch } from "./components/data/sharedStore";
 
-const SHARED_STORE_SYNC_INTERVAL_MS = 15000;
+const SHARED_STORE_SYNC_INTERVAL_MS = 120000;
 
 const isAdminPath = () => {
   if (typeof window === "undefined") return false;

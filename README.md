@@ -23,6 +23,7 @@ Landing page en React + Vite para catalogo y contacto, con panel administrativo 
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `SUPABASE_SHARED_STORE_TABLE` (opcional)
    - `SUPABASE_SHARED_STORE_KEY` (opcional)
+   - `SUPABASE_STORAGE_BUCKET` (opcional)
    - `API_PORT` (opcional)
    - `PORT` (opcional)
 
@@ -66,6 +67,7 @@ Este repo incluye funciones serverless en:
 - `api/admin/logout.js`
 - `api/store.js`
 - `api/admin/store.js`
+- `api/admin/images.js`
 
 En Vercel define variables de entorno en Project Settings:
 - `ADMIN_USERNAME`
@@ -76,7 +78,9 @@ En Vercel define variables de entorno en Project Settings:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_SHARED_STORE_TABLE` (opcional; por defecto `shared_store`)
 - `SUPABASE_SHARED_STORE_KEY` (opcional; por defecto `main`)
+- `SUPABASE_STORAGE_BUCKET` (opcional; por defecto `rame-images`)
 - `API_JSON_BODY_MAX_BYTES` (opcional; por defecto 8388608, util si subes imagenes mas pesadas)
+- `ADMIN_IMAGE_UPLOAD_MAX_BYTES` (opcional; por defecto 2097152)
 
 Despues de guardar variables, fuerza un nuevo deploy.
 
@@ -92,3 +96,4 @@ Despues de guardar variables, fuerza un nuevo deploy.
 
 - Productos y banner: `localStorage` + respaldo en `IndexedDB` para respuesta rapida local
 - Store compartido entre dispositivos: Supabase, via `api/store` y `api/admin/store`
+- Imagenes de productos y banners: Supabase Storage, via `api/admin/images`

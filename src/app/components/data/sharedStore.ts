@@ -46,7 +46,6 @@ export const getSharedStore = async (): Promise<SharedStoreReadResult> => {
   try {
     const response = await fetch("/api/store", {
       method: "GET",
-      cache: "no-store",
       credentials: "include",
     });
 

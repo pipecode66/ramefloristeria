@@ -33,6 +33,7 @@ import {
   compressStoredImageToWebP,
   isStoredImageConvertibleToWebP,
 } from "./data/imageCompression";
+import { uploadAdminImage, type AdminImageFolder } from "./data/adminImageUpload";
 import {
   DEFAULT_BADGE_BACKGROUND_COLOR,
   DEFAULT_BADGE_TEXT_COLOR,
@@ -240,10 +241,15 @@ export function AdminPanel({
         maxHeight: 1920,
         targetBytes: 320 * 1024,
       });
-      updateHeroBannerAt(index, compressed.dataUrl);
+      const uploaded = await uploadAdminImage(compressed.dataUrl, "banners");
+      if (!uploaded.ok || !uploaded.url) {
+        throw new Error(uploaded.error ?? "No se pudo subir el banner.");
+      }
+
+      updateHeroBannerAt(index, uploaded.url);
       setBannerMessage({
         type: "success",
-        text: `Banner ${index + 1} convertido a WebP y comprimido a ${Math.round(
+        text: `Banner ${index + 1} convertido a WebP y subido a ${Math.round(
           compressed.bytes / 1024
         )} KB.`,
       });
@@ -343,7 +349,12 @@ export function AdminPanel({
         maxHeight: 1400,
         targetBytes: 220 * 1024,
       });
-      updateField("image", compressed.dataUrl);
+      const uploaded = await uploadAdminImage(compressed.dataUrl, "products");
+      if (!uploaded.ok || !uploaded.url) {
+        throw new Error(uploaded.error ?? "No se pudo subir la imagen.");
+      }
+
+      updateField("image", uploaded.url);
       setErrorMessage("");
     } catch (error) {
       const message =
@@ -356,6 +367,7 @@ export function AdminPanel({
 
   const convertStoredImage = async (
     image: string,
+    folder: AdminImageFolder,
     options: ImageConversionOptions,
     stats: ImageConversionStats
   ) => {
@@ -367,13 +379,13 @@ export function AdminPanel({
 
     try {
       const converted = await compressStoredImageToWebP(trimmedImage, options);
-      if (converted.dataUrl === trimmedImage) {
-        stats.skipped += 1;
-        return image;
+      const uploaded = await uploadAdminImage(converted.dataUrl, folder);
+      if (!uploaded.ok || !uploaded.url) {
+        throw new Error(uploaded.error ?? "No se pudo subir la imagen convertida.");
       }
 
       stats.converted += 1;
-      return converted.dataUrl;
+      return uploaded.url;
     } catch {
       stats.failed += 1;
       return image;
@@ -398,6 +410,7 @@ export function AdminPanel({
         currentBannerImages.map((image) =>
           convertStoredImage(
             image,
+            "banners",
             { maxWidth: 1920, maxHeight: 1920, targetBytes: 320 * 1024 },
             stats
           )
@@ -416,6 +429,7 @@ export function AdminPanel({
             product.images.map((image) =>
               convertStoredImage(
                 image,
+                "products",
                 { maxWidth: 1400, maxHeight: 1400, targetBytes: 220 * 1024 },
                 stats
               )
@@ -433,7 +447,7 @@ export function AdminPanel({
           text:
             stats.failed > 0
               ? `No se convirtieron imagenes. ${stats.failed} imagen(es) no se pudieron procesar.`
-              : "Las imagenes actuales ya estan en WebP o son URLs externas.",
+              : "Las imagenes actuales ya estan alojadas como URLs externas.",
         });
         return;
       }
@@ -476,7 +490,7 @@ export function AdminPanel({
         text:
           stats.failed > 0
             ? `${stats.converted} imagen(es) convertidas a WebP. ${stats.failed} no se pudieron procesar.`
-            : `${stats.converted} imagen(es) convertidas y guardadas en WebP.`,
+            : `${stats.converted} imagen(es) convertidas a WebP y subidas a Supabase Storage.`,
       });
     } finally {
       setConvertingStoredImages(false);
@@ -919,7 +933,7 @@ export function AdminPanel({
                   marginTop: "4px",
                 }}
               >
-                Las nuevas subidas se guardan automaticamente como WebP.
+                Las nuevas subidas se guardan como WebP en Supabase Storage.
               </p>
 
               <button
@@ -936,7 +950,7 @@ export function AdminPanel({
                 }}
               >
                 <RefreshCw size={15} />
-                {convertingStoredImages ? "Convirtiendo..." : "Convertir actuales a WebP"}
+                {convertingStoredImages ? "Convirtiendo..." : "Mover actuales a Storage"}
               </button>
 
               {imageFormatMessage && (
