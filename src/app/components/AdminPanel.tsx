@@ -8,13 +8,10 @@ import {
 } from "react";
 import {
   ArrowLeft,
-  Download,
-  FileUp,
   ImagePlus,
   LogOut,
   MessageCircle,
   Pencil,
-  RefreshCw,
   Save,
   Star,
   Trash2,
@@ -30,13 +27,8 @@ import {
   PRODUCT_PRICE_MIN,
 } from "./data/productsStore";
 import { createProductWhatsAppLink } from "./data/whatsapp";
-import {
-  compressImageFile,
-  compressStoredImageToWebP,
-  isStoredImageConvertibleToWebP,
-} from "./data/imageCompression";
-import { uploadAdminImage, type AdminImageFolder } from "./data/adminImageUpload";
-import { importRemoteAdminImage } from "./data/remoteImageImport";
+import { compressImageFile } from "./data/imageCompression";
+import { uploadAdminImage } from "./data/adminImageUpload";
 import {
   DEFAULT_BADGE_BACKGROUND_COLOR,
   DEFAULT_BADGE_TEXT_COLOR,
@@ -73,21 +65,6 @@ type BannerMessage = {
   type: "success" | "error";
   text: string;
 } | null;
-
-type ImageConversionOptions = NonNullable<Parameters<typeof compressStoredImageToWebP>[1]>;
-
-interface ImageConversionStats {
-  converted: number;
-  skipped: number;
-  failed: number;
-}
-
-interface ContentBackupPayload {
-  version: number;
-  exportedAt: string;
-  heroContent: HeroContent;
-  products: Arrangement[];
-}
 
 const EMPTY_FORM: ProductFormState = {
   name: "",
@@ -140,10 +117,7 @@ const pillButtonStyle = (active: boolean) => ({
   fontWeight: 700,
 });
 
-const areStringListsEqual = (left: string[], right: string[]) =>
-  left.length === right.length && left.every((item, index) => item === right[index]);
-
-const isLegacySupabaseStorageImage = (source: string) => {
+const isLegacySupabaseImageUrl = (source: string) => {
   try {
     const url = new URL(source.trim());
     return (
@@ -165,17 +139,12 @@ export function AdminPanel({
   const [heroForm, setHeroForm] = useState<HeroContent>(() => createHeroFormState(heroContent));
   const [bannerMessage, setBannerMessage] = useState<BannerMessage>(null);
   const [featuredLabelMessage, setFeaturedLabelMessage] = useState<BannerMessage>(null);
-  const [imageFormatMessage, setImageFormatMessage] = useState<BannerMessage>(null);
   const [featuredLabelForm, setFeaturedLabelForm] = useState(() => heroContent.featuredTabLabel);
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [compressingHeroImageIndex, setCompressingHeroImageIndex] = useState<number | null>(null);
   const [compressingProductImage, setCompressingProductImage] = useState(false);
-  const [convertingStoredImages, setConvertingStoredImages] = useState(false);
-  const [migratingLegacyImages, setMigratingLegacyImages] = useState(false);
-  const [migrationMessage, setMigrationMessage] = useState<BannerMessage>(null);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
   const heroBannerSignature = JSON.stringify(getHeroEditorImages(heroContent));
   const previousHeroBannerSignatureRef = useRef(heroBannerSignature);
 
@@ -309,6 +278,14 @@ export function AdminPanel({
       return;
     }
 
+    if (bannerImages.some(isLegacySupabaseImageUrl)) {
+      setBannerMessage({
+        type: "error",
+        text: "Hay un banner con imagen del Storage anterior. Sube nuevamente la imagen para guardarla en R2.",
+      });
+      return;
+    }
+
     const result = await onHeroContentChange(normalized);
 
     if (!result.ok) {
@@ -390,263 +367,6 @@ export function AdminPanel({
     }
   };
 
-  const convertStoredImage = async (
-    image: string,
-    folder: AdminImageFolder,
-    options: ImageConversionOptions,
-    stats: ImageConversionStats
-  ) => {
-    const trimmedImage = image.trim();
-    if (!isStoredImageConvertibleToWebP(trimmedImage)) {
-      stats.skipped += 1;
-      return image;
-    }
-
-    try {
-      const converted = await compressStoredImageToWebP(trimmedImage, options);
-      const uploaded = await uploadAdminImage(converted.dataUrl, folder);
-      if (!uploaded.ok || !uploaded.url) {
-        throw new Error(uploaded.error ?? "No se pudo subir la imagen convertida.");
-      }
-
-      stats.converted += 1;
-      return uploaded.url;
-    } catch {
-      stats.failed += 1;
-      return image;
-    }
-  };
-
-  const handleConvertStoredImages = async () => {
-    if (convertingStoredImages) return;
-
-    setConvertingStoredImages(true);
-    setImageFormatMessage(null);
-
-    const stats: ImageConversionStats = {
-      converted: 0,
-      skipped: 0,
-      failed: 0,
-    };
-
-    try {
-      const currentBannerImages = getHeroEditorImages(heroContent);
-      const nextBannerImages = await Promise.all(
-        currentBannerImages.map((image) =>
-          convertStoredImage(
-            image,
-            "banners",
-            { maxWidth: 1920, maxHeight: 1920, targetBytes: 320 * 1024 },
-            stats
-          )
-        )
-      );
-      const nextHeroContent: HeroContent = {
-        ...heroContent,
-        bannerImages: nextBannerImages,
-        bannerImage: nextBannerImages[0] ?? "",
-      };
-
-      const nextProducts = await Promise.all(
-        products.map(async (product) => ({
-          ...product,
-          images: await Promise.all(
-            product.images.map((image) =>
-              convertStoredImage(
-                image,
-                "products",
-                { maxWidth: 1400, maxHeight: 1400, targetBytes: 220 * 1024 },
-                stats
-              )
-            )
-          ),
-        }))
-      );
-
-      const heroChanged = !areStringListsEqual(currentBannerImages, nextBannerImages);
-      const productsChanged = JSON.stringify(products) !== JSON.stringify(nextProducts);
-
-      if (!heroChanged && !productsChanged) {
-        setImageFormatMessage({
-          type: stats.failed > 0 ? "error" : "success",
-          text:
-            stats.failed > 0
-              ? `No se convirtieron imagenes. ${stats.failed} imagen(es) no se pudieron procesar.`
-              : "Las imagenes actuales ya estan alojadas como URLs externas.",
-        });
-        return;
-      }
-
-      if (heroChanged) {
-        const heroResult = await onHeroContentChange(nextHeroContent);
-        if (!heroResult.ok) {
-          setImageFormatMessage({
-            type: "error",
-            text: heroResult.error ?? "No se pudo guardar el banner convertido.",
-          });
-          return;
-        }
-        setHeroForm(createHeroFormState(nextHeroContent));
-      }
-
-      if (productsChanged) {
-        const productsResult = await onProductsChange(nextProducts);
-        if (!productsResult.ok) {
-          setImageFormatMessage({
-            type: "error",
-            text: productsResult.error ?? "No se pudieron guardar los productos convertidos.",
-          });
-          return;
-        }
-
-        if (editingId) {
-          const editedProduct = nextProducts.find((product) => product.id === editingId);
-          if (editedProduct) {
-            setForm((prev) => ({
-              ...prev,
-              image: editedProduct.images[0] ?? prev.image,
-            }));
-          }
-        }
-      }
-
-      setImageFormatMessage({
-        type: stats.failed > 0 ? "error" : "success",
-        text:
-          stats.failed > 0
-            ? `${stats.converted} imagen(es) convertidas a WebP. ${stats.failed} no se pudieron procesar.`
-            : `${stats.converted} imagen(es) convertidas a WebP y subidas a Cloudflare R2.`,
-      });
-    } finally {
-      setConvertingStoredImages(false);
-    }
-  };
-
-  const migrateLegacyImage = async (
-    image: string,
-    folder: AdminImageFolder,
-    stats: ImageConversionStats
-  ) => {
-    const trimmedImage = image.trim();
-    if (!isLegacySupabaseStorageImage(trimmedImage)) {
-      stats.skipped += 1;
-      return image;
-    }
-
-    const imported = await importRemoteAdminImage(trimmedImage, folder);
-    if (!imported.ok || !imported.url) {
-      stats.failed += 1;
-      return image;
-    }
-
-    stats.converted += 1;
-    return imported.url;
-  };
-
-  const migrateLegacyImageList = async (
-    images: string[],
-    folder: AdminImageFolder,
-    stats: ImageConversionStats
-  ) => {
-    const migratedImages: string[] = [];
-    for (const image of images) {
-      migratedImages.push(await migrateLegacyImage(image, folder, stats));
-    }
-    return migratedImages;
-  };
-
-  const handleMigrateLegacyImages = async () => {
-    if (migratingLegacyImages) return;
-
-    setMigratingLegacyImages(true);
-    setMigrationMessage(null);
-
-    const stats: ImageConversionStats = {
-      converted: 0,
-      skipped: 0,
-      failed: 0,
-    };
-
-    try {
-      const currentBannerImages = getHeroEditorImages(heroContent);
-      const nextBannerImages = await migrateLegacyImageList(
-        currentBannerImages,
-        "banners",
-        stats
-      );
-      const nextHeroContent: HeroContent = {
-        ...heroContent,
-        bannerImages: nextBannerImages,
-        bannerImage: nextBannerImages[0] ?? "",
-      };
-
-      const nextProducts: Arrangement[] = [];
-      for (const product of products) {
-        nextProducts.push({
-          ...product,
-          images: await migrateLegacyImageList(product.images, "products", stats),
-        });
-      }
-
-      const heroChanged = !areStringListsEqual(currentBannerImages, nextBannerImages);
-      const productsChanged = JSON.stringify(products) !== JSON.stringify(nextProducts);
-
-      if (!heroChanged && !productsChanged) {
-        setMigrationMessage({
-          type: stats.failed > 0 ? "error" : "success",
-          text:
-            stats.failed > 0
-              ? `No se pudo migrar ninguna imagen. ${stats.failed} URL(es) antiguas no respondieron.`
-              : "No encontre URLs antiguas de Supabase pendientes por migrar.",
-        });
-        return;
-      }
-
-      if (heroChanged) {
-        const heroResult = await onHeroContentChange(nextHeroContent);
-        if (!heroResult.ok) {
-          setMigrationMessage({
-            type: "error",
-            text: heroResult.error ?? "No se pudo guardar el banner migrado.",
-          });
-          return;
-        }
-        setHeroForm(createHeroFormState(nextHeroContent));
-      }
-
-      if (productsChanged) {
-        const productsResult = await onProductsChange(nextProducts);
-        if (!productsResult.ok) {
-          setMigrationMessage({
-            type: "error",
-            text: productsResult.error ?? "No se pudieron guardar los productos migrados.",
-          });
-          return;
-        }
-
-        if (editingId) {
-          const editedProduct = nextProducts.find((product) => product.id === editingId);
-          if (editedProduct) {
-            setForm((prev) => ({
-              ...prev,
-              image: editedProduct.images[0] ?? prev.image,
-            }));
-          }
-        }
-      }
-
-      setMigrationMessage({
-        type: stats.failed > 0 ? "error" : "success",
-        text:
-          stats.failed > 0
-            ? `${stats.converted} imagen(es) migradas a R2. ${stats.failed} no se pudieron descargar; probablemente Supabase bloqueo el egress.`
-            : `${stats.converted} imagen(es) migradas a R2 y guardadas en la base nueva.`,
-      });
-    } finally {
-      setMigratingLegacyImages(false);
-    }
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -658,6 +378,13 @@ export function AdminPanel({
 
     if (!name || !description || !category || !image) {
       setErrorMessage("Completa todos los campos y agrega una imagen.");
+      return;
+    }
+
+    if (isLegacySupabaseImageUrl(image)) {
+      setErrorMessage(
+        "Esta imagen viene del Storage anterior. Sube nuevamente el archivo para guardarlo en R2."
+      );
       return;
     }
 
@@ -753,92 +480,6 @@ export function AdminPanel({
     }
   };
 
-  const handleExportContent = () => {
-    const payload: ContentBackupPayload = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      heroContent,
-      products,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `rame-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    setMigrationMessage({
-      type: "success",
-      text: "Backup generado con productos y banners actuales.",
-    });
-  };
-
-  const parseContentBackup = (value: unknown): ContentBackupPayload => {
-    if (!value || typeof value !== "object") {
-      throw new Error("Archivo de backup invalido.");
-    }
-
-    const parsed = value as Partial<ContentBackupPayload>;
-    if (!parsed.heroContent || typeof parsed.heroContent !== "object") {
-      throw new Error("El backup no contiene banner valido.");
-    }
-    if (!Array.isArray(parsed.products)) {
-      throw new Error("El backup no contiene productos validos.");
-    }
-
-    return {
-      version: typeof parsed.version === "number" ? parsed.version : 1,
-      exportedAt:
-        typeof parsed.exportedAt === "string"
-          ? parsed.exportedAt
-          : new Date().toISOString(),
-      heroContent: parsed.heroContent as HeroContent,
-      products: parsed.products,
-    };
-  };
-
-  const handleImportContent = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
-    try {
-      const backup = parseContentBackup(JSON.parse(await file.text()));
-      const heroResult = await onHeroContentChange(backup.heroContent);
-      if (!heroResult.ok) {
-        setMigrationMessage({
-          type: "error",
-          text: heroResult.error ?? "No se pudo importar el banner.",
-        });
-        return;
-      }
-
-      const productsResult = await onProductsChange(backup.products);
-      if (!productsResult.ok) {
-        setMigrationMessage({
-          type: "error",
-          text: productsResult.error ?? "No se pudieron importar los productos.",
-        });
-        return;
-      }
-
-      setHeroForm(createHeroFormState(backup.heroContent));
-      setMigrationMessage({
-        type: "success",
-        text: `Backup importado: ${backup.products.length} producto(s).`,
-      });
-    } catch (error) {
-      setMigrationMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "No se pudo importar el backup.",
-      });
-    }
-  };
-
   const goBackToSite = () => {
     if (window.location.hash.toLowerCase().includes("admin")) {
       window.location.hash = "";
@@ -928,108 +569,6 @@ export function AdminPanel({
             boxShadow: "0 10px 30px rgba(58,46,38,0.08)",
           }}
         >
-          <div
-            className="mb-8 rounded-2xl p-4"
-            style={{ backgroundColor: "#f8f1ea", border: "1px solid #eadbce" }}
-          >
-            <h2
-              style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: "22px",
-                color: "#3a2e26",
-              }}
-            >
-              Migracion de contenido
-            </h2>
-            <p
-              style={{
-                fontFamily: "'Lato', sans-serif",
-                fontSize: "13px",
-                color: "#9e7b5a",
-                marginTop: "4px",
-                lineHeight: 1.5,
-              }}
-            >
-              Exporta productos y banners desde este navegador o importa un backup en la base nueva.
-            </p>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={handleExportContent}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
-                style={{
-                  backgroundColor: "#4a6741",
-                  color: "#fdf6f0",
-                  border: "none",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                <Download size={15} />
-                Exportar backup
-              </button>
-
-              <button
-                type="button"
-                onClick={() => importInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
-                style={{
-                  backgroundColor: "#f0ebe4",
-                  color: "#4a6741",
-                  border: "1px solid #d9c9bc",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                <FileUp size={15} />
-                Importar backup
-              </button>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept="application/json,.json"
-                onChange={handleImportContent}
-                className="hidden"
-              />
-
-              <button
-                type="button"
-                onClick={handleMigrateLegacyImages}
-                disabled={migratingLegacyImages}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
-                style={{
-                  backgroundColor: "#fdf9f6",
-                  color: "#8a5f2f",
-                  border: "1px solid #e8d5c4",
-                  fontWeight: 700,
-                  cursor: migratingLegacyImages ? "wait" : "pointer",
-                  opacity: migratingLegacyImages ? 0.75 : 1,
-                }}
-              >
-                <RefreshCw
-                  size={15}
-                  className={migratingLegacyImages ? "animate-spin" : ""}
-                />
-                {migratingLegacyImages ? "Migrando..." : "Migrar URLs a R2"}
-              </button>
-            </div>
-
-            {migrationMessage && (
-              <p
-                className="mt-3 px-3 py-2 rounded-xl"
-                style={{
-                  backgroundColor:
-                    migrationMessage.type === "success" ? "#eaf4e5" : "#fbe4dc",
-                  color: migrationMessage.type === "success" ? "#2e5c22" : "#8a3d2c",
-                  fontSize: "13px",
-                }}
-              >
-                {migrationMessage.text}
-              </p>
-            )}
-          </div>
-
           <div className="mb-8">
             <h2
               style={{
@@ -1082,15 +621,6 @@ export function AdminPanel({
                         </button>
                       )}
                     </div>
-
-                    <input
-                      type="url"
-                      value={bannerImage}
-                      onChange={(event) => updateHeroBannerAt(index, event.target.value)}
-                      placeholder="https://..."
-                      className="rounded-xl px-4 py-2.5 outline-none"
-                      style={{ border: "1.5px solid #e8d5c4", backgroundColor: "#fff" }}
-                    />
 
                     <label
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl cursor-pointer w-fit"
@@ -1250,61 +780,6 @@ export function AdminPanel({
               </form>
             </div>
 
-            <div
-              className="mt-6 pt-6"
-              style={{ borderTop: "1px solid #efe2d6" }}
-            >
-              <h3
-                style={{
-                  fontFamily: "'Playfair Display', serif",
-                  fontSize: "20px",
-                  color: "#3a2e26",
-                }}
-              >
-                Formato de imagenes
-              </h3>
-              <p
-                style={{
-                  fontFamily: "'Lato', sans-serif",
-                  fontSize: "13px",
-                  color: "#9e7b5a",
-                  marginTop: "4px",
-                }}
-              >
-                Las nuevas subidas se guardan como WebP en Cloudflare R2.
-              </p>
-
-              <button
-                type="button"
-                onClick={handleConvertStoredImages}
-                disabled={convertingStoredImages}
-                className="mt-4 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl w-fit"
-                style={{
-                  backgroundColor: convertingStoredImages ? "#d9c9bc" : "#4a6741",
-                  color: "#fdf6f0",
-                  border: "none",
-                  fontWeight: 700,
-                  cursor: convertingStoredImages ? "not-allowed" : "pointer",
-                }}
-              >
-                <RefreshCw size={15} />
-                {convertingStoredImages ? "Convirtiendo..." : "Mover actuales a Storage"}
-              </button>
-
-              {imageFormatMessage && (
-                <p
-                  className="mt-3 px-3 py-2 rounded-xl"
-                  style={{
-                    backgroundColor:
-                      imageFormatMessage.type === "success" ? "#eaf4e5" : "#fbe4dc",
-                    color: imageFormatMessage.type === "success" ? "#2e5c22" : "#8a3d2c",
-                    fontSize: "13px",
-                  }}
-                >
-                  {imageFormatMessage.text}
-                </p>
-              )}
-            </div>
           </div>
 
           <div
@@ -1415,20 +890,11 @@ export function AdminPanel({
 
             <label className="flex flex-col gap-2">
               <span style={{ fontSize: "13px", color: "#5a4a3a", fontWeight: 700 }}>
-                Imagen (URL o archivo)
+                Imagen del producto
               </span>
-              <input
-                type="url"
-                value={form.image}
-                onChange={(event) => updateField("image", event.target.value)}
-                placeholder="https://..."
-                className="rounded-xl px-4 py-2.5 outline-none"
-                style={{
-                  border: "1.5px solid #e8d5c4",
-                  backgroundColor: "#fdf9f6",
-                  fontSize: "14px",
-                }}
-              />
+              <span style={{ fontSize: "12px", color: "#9e7b5a" }}>
+                Sube un archivo. El panel lo convierte automaticamente a WebP y lo guarda en R2.
+              </span>
 
               <label
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl cursor-pointer w-fit"

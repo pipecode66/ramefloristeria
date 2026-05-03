@@ -72,7 +72,6 @@ Este repo incluye funciones serverless en:
 - `api/store.js`
 - `api/admin/store.js`
 - `api/admin/images.js`
-- `api/admin/image-import.js`
 
 En Vercel define variables de entorno en Project Settings:
 - `ADMIN_USERNAME`
@@ -107,11 +106,6 @@ Despues de guardar variables, fuerza un nuevo deploy.
 - Store compartido entre dispositivos: Supabase, via `api/store` y `api/admin/store`
 - Imagenes de productos y banners: Cloudflare R2, via URLs firmadas de `api/admin/images`
 
-## Migracion de contenido
-
-El panel admin incluye opciones para exportar e importar un backup JSON de productos y banners.
-Usa esa ruta si cambias de proyecto Supabase o si necesitas restaurar contenido desde el cache local del navegador.
-
-Si el backup trae imagenes apuntando al Storage viejo de Supabase, usa el boton `Migrar URLs a R2` del panel admin. Ese proceso descarga las URLs antiguas que todavia respondan, las sube a Cloudflare R2 y guarda las nuevas URLs publicas. Si Supabase ya bloqueo el egress, esas imagenes no se podran descargar y tendran que subirse manualmente o recuperarse desbloqueando temporalmente el proyecto anterior.
+## Imagenes en R2
 
 Para subir imagenes directo a R2 desde el navegador, configura CORS en el bucket con tu dominio de produccion y `http://localhost:5173` si pruebas localmente.
