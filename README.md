@@ -23,7 +23,11 @@ Landing page en React + Vite para catalogo y contacto, con panel administrativo 
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `SUPABASE_SHARED_STORE_TABLE` (opcional)
    - `SUPABASE_SHARED_STORE_KEY` (opcional)
-   - `SUPABASE_STORAGE_BUCKET` (opcional)
+   - `R2_ACCOUNT_ID`
+   - `R2_ACCESS_KEY_ID`
+   - `R2_SECRET_ACCESS_KEY`
+   - `R2_BUCKET_NAME`
+   - `R2_PUBLIC_BASE_URL`
    - `API_PORT` (opcional)
    - `PORT` (opcional)
 
@@ -78,7 +82,11 @@ En Vercel define variables de entorno en Project Settings:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_SHARED_STORE_TABLE` (opcional; por defecto `shared_store`)
 - `SUPABASE_SHARED_STORE_KEY` (opcional; por defecto `main`)
-- `SUPABASE_STORAGE_BUCKET` (opcional; por defecto `rame-images`)
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET_NAME`
+- `R2_PUBLIC_BASE_URL`
 - `API_JSON_BODY_MAX_BYTES` (opcional; por defecto 8388608, util si subes imagenes mas pesadas)
 - `ADMIN_IMAGE_UPLOAD_MAX_BYTES` (opcional; por defecto 2097152)
 
@@ -96,4 +104,11 @@ Despues de guardar variables, fuerza un nuevo deploy.
 
 - Productos y banner: `localStorage` + respaldo en `IndexedDB` para respuesta rapida local
 - Store compartido entre dispositivos: Supabase, via `api/store` y `api/admin/store`
-- Imagenes de productos y banners: Supabase Storage, via `api/admin/images`
+- Imagenes de productos y banners: Cloudflare R2, via URLs firmadas de `api/admin/images`
+
+## Migracion de contenido
+
+El panel admin incluye opciones para exportar e importar un backup JSON de productos y banners.
+Usa esa ruta si cambias de proyecto Supabase o si necesitas restaurar contenido desde el cache local del navegador.
+
+Para subir imagenes directo a R2 desde el navegador, configura CORS en el bucket con tu dominio de produccion y `http://localhost:5173` si pruebas localmente.

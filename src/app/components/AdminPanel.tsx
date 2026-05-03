@@ -8,6 +8,8 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  Download,
+  FileUp,
   ImagePlus,
   LogOut,
   MessageCircle,
@@ -77,6 +79,13 @@ interface ImageConversionStats {
   converted: number;
   skipped: number;
   failed: number;
+}
+
+interface ContentBackupPayload {
+  version: number;
+  exportedAt: string;
+  heroContent: HeroContent;
+  products: Arrangement[];
 }
 
 const EMPTY_FORM: ProductFormState = {
@@ -151,6 +160,8 @@ export function AdminPanel({
   const [compressingHeroImageIndex, setCompressingHeroImageIndex] = useState<number | null>(null);
   const [compressingProductImage, setCompressingProductImage] = useState(false);
   const [convertingStoredImages, setConvertingStoredImages] = useState(false);
+  const [migrationMessage, setMigrationMessage] = useState<BannerMessage>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const heroBannerSignature = JSON.stringify(getHeroEditorImages(heroContent));
   const previousHeroBannerSignatureRef = useRef(heroBannerSignature);
 
@@ -490,7 +501,7 @@ export function AdminPanel({
         text:
           stats.failed > 0
             ? `${stats.converted} imagen(es) convertidas a WebP. ${stats.failed} no se pudieron procesar.`
-            : `${stats.converted} imagen(es) convertidas a WebP y subidas a Supabase Storage.`,
+            : `${stats.converted} imagen(es) convertidas a WebP y subidas a Cloudflare R2.`,
       });
     } finally {
       setConvertingStoredImages(false);
@@ -603,6 +614,92 @@ export function AdminPanel({
     }
   };
 
+  const handleExportContent = () => {
+    const payload: ContentBackupPayload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      heroContent,
+      products,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `rame-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setMigrationMessage({
+      type: "success",
+      text: "Backup generado con productos y banners actuales.",
+    });
+  };
+
+  const parseContentBackup = (value: unknown): ContentBackupPayload => {
+    if (!value || typeof value !== "object") {
+      throw new Error("Archivo de backup invalido.");
+    }
+
+    const parsed = value as Partial<ContentBackupPayload>;
+    if (!parsed.heroContent || typeof parsed.heroContent !== "object") {
+      throw new Error("El backup no contiene banner valido.");
+    }
+    if (!Array.isArray(parsed.products)) {
+      throw new Error("El backup no contiene productos validos.");
+    }
+
+    return {
+      version: typeof parsed.version === "number" ? parsed.version : 1,
+      exportedAt:
+        typeof parsed.exportedAt === "string"
+          ? parsed.exportedAt
+          : new Date().toISOString(),
+      heroContent: parsed.heroContent as HeroContent,
+      products: parsed.products,
+    };
+  };
+
+  const handleImportContent = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const backup = parseContentBackup(JSON.parse(await file.text()));
+      const heroResult = await onHeroContentChange(backup.heroContent);
+      if (!heroResult.ok) {
+        setMigrationMessage({
+          type: "error",
+          text: heroResult.error ?? "No se pudo importar el banner.",
+        });
+        return;
+      }
+
+      const productsResult = await onProductsChange(backup.products);
+      if (!productsResult.ok) {
+        setMigrationMessage({
+          type: "error",
+          text: productsResult.error ?? "No se pudieron importar los productos.",
+        });
+        return;
+      }
+
+      setHeroForm(createHeroFormState(backup.heroContent));
+      setMigrationMessage({
+        type: "success",
+        text: `Backup importado: ${backup.products.length} producto(s).`,
+      });
+    } catch (error) {
+      setMigrationMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "No se pudo importar el backup.",
+      });
+    }
+  };
+
   const goBackToSite = () => {
     if (window.location.hash.toLowerCase().includes("admin")) {
       window.location.hash = "";
@@ -692,6 +789,87 @@ export function AdminPanel({
             boxShadow: "0 10px 30px rgba(58,46,38,0.08)",
           }}
         >
+          <div
+            className="mb-8 rounded-2xl p-4"
+            style={{ backgroundColor: "#f8f1ea", border: "1px solid #eadbce" }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Playfair Display', serif",
+                fontSize: "22px",
+                color: "#3a2e26",
+              }}
+            >
+              Migracion de contenido
+            </h2>
+            <p
+              style={{
+                fontFamily: "'Lato', sans-serif",
+                fontSize: "13px",
+                color: "#9e7b5a",
+                marginTop: "4px",
+                lineHeight: 1.5,
+              }}
+            >
+              Exporta productos y banners desde este navegador o importa un backup en la base nueva.
+            </p>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleExportContent}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
+                style={{
+                  backgroundColor: "#4a6741",
+                  color: "#fdf6f0",
+                  border: "none",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <Download size={15} />
+                Exportar backup
+              </button>
+
+              <button
+                type="button"
+                onClick={() => importInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
+                style={{
+                  backgroundColor: "#f0ebe4",
+                  color: "#4a6741",
+                  border: "1px solid #d9c9bc",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <FileUp size={15} />
+                Importar backup
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportContent}
+                className="hidden"
+              />
+            </div>
+
+            {migrationMessage && (
+              <p
+                className="mt-3 px-3 py-2 rounded-xl"
+                style={{
+                  backgroundColor:
+                    migrationMessage.type === "success" ? "#eaf4e5" : "#fbe4dc",
+                  color: migrationMessage.type === "success" ? "#2e5c22" : "#8a3d2c",
+                  fontSize: "13px",
+                }}
+              >
+                {migrationMessage.text}
+              </p>
+            )}
+          </div>
+
           <div className="mb-8">
             <h2
               style={{
@@ -933,7 +1111,7 @@ export function AdminPanel({
                   marginTop: "4px",
                 }}
               >
-                Las nuevas subidas se guardan como WebP en Supabase Storage.
+                Las nuevas subidas se guardan como WebP en Cloudflare R2.
               </p>
 
               <button

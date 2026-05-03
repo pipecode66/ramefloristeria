@@ -2,7 +2,6 @@ import { createClient } from "@supabase/supabase-js";
 
 const DEFAULT_TABLE_NAME = "shared_store";
 const DEFAULT_STORE_KEY = "main";
-const DEFAULT_STORAGE_BUCKET = "rame-images";
 
 let cachedClient = null;
 let cachedClientKey = "";
@@ -15,15 +14,12 @@ export const getSupabaseConfig = () => {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   const table = process.env.SUPABASE_SHARED_STORE_TABLE?.trim() || DEFAULT_TABLE_NAME;
   const storeKey = process.env.SUPABASE_SHARED_STORE_KEY?.trim() || DEFAULT_STORE_KEY;
-  const storageBucket =
-    process.env.SUPABASE_STORAGE_BUCKET?.trim() || DEFAULT_STORAGE_BUCKET;
 
   return {
     url,
     serviceRoleKey,
     table,
     storeKey,
-    storageBucket,
     isConfigured: Boolean(url && serviceRoleKey),
   };
 };

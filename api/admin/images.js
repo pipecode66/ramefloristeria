@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
   getAuthConfig,
   parseCookies,
@@ -8,15 +10,15 @@ import {
   SESSION_COOKIE_NAME,
   verifySessionToken,
 } from "./_auth.js";
-import {
-  getErrorMessage,
-  getSupabaseAdminClient,
-  getSupabaseConfig,
-} from "../_supabase.js";
 
 const DEFAULT_MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-const IMAGE_CACHE_CONTROL_SECONDS = 60 * 60 * 24 * 365;
+const SIGNED_UPLOAD_EXPIRES_SECONDS = 60 * 5;
+const IMAGE_CACHE_CONTROL = "public, max-age=31536000, immutable";
 const ALLOWED_FOLDERS = new Set(["banners", "products"]);
+const IMAGE_CONTENT_TYPE = "image/webp";
+
+let cachedClient = null;
+let cachedClientKey = "";
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -27,45 +29,51 @@ const parsePositiveInteger = (value, fallback) => {
 const getMaxImageBytes = () =>
   parsePositiveInteger(process.env.ADMIN_IMAGE_UPLOAD_MAX_BYTES, DEFAULT_MAX_IMAGE_BYTES);
 
-const parseWebPDataUrl = (value) => {
-  if (typeof value !== "string") {
-    throw new Error("Imagen invalida.");
-  }
+const getR2Config = () => {
+  const accountId = process.env.R2_ACCOUNT_ID?.trim() ?? "";
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim() ?? "";
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim() ?? "";
+  const bucket = process.env.R2_BUCKET_NAME?.trim() ?? "";
+  const publicBaseUrl = (process.env.R2_PUBLIC_BASE_URL?.trim() ?? "").replace(/\/+$/, "");
 
-  const match = value.match(/^data:image\/webp;base64,([a-z0-9+/=]+)$/i);
-  if (!match?.[1]) {
-    throw new Error("La imagen debe estar convertida a WebP antes de subirla.");
-  }
-
-  return Buffer.from(match[1], "base64");
+  return {
+    accountId,
+    accessKeyId,
+    secretAccessKey,
+    bucket,
+    publicBaseUrl,
+    endpoint: accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "",
+    isConfigured: Boolean(
+      accountId && accessKeyId && secretAccessKey && bucket && publicBaseUrl
+    ),
+  };
 };
 
-const ensurePublicImageBucket = async (supabase, bucket, maxBytes) => {
-  const options = {
-    public: true,
-    allowedMimeTypes: ["image/webp"],
-    fileSizeLimit: maxBytes,
-  };
-
-  const { error: getBucketError } = await supabase.storage.getBucket(bucket);
-  if (!getBucketError) {
-    const { error: updateBucketError } = await supabase.storage.updateBucket(
-      bucket,
-      options
-    );
-    if (updateBucketError) {
-      throw updateBucketError;
-    }
-    return;
+const getR2Client = (config) => {
+  const cacheKey = `${config.accountId}::${config.accessKeyId}`;
+  if (cachedClient && cachedClientKey === cacheKey) {
+    return cachedClient;
   }
 
-  const { error: createBucketError } = await supabase.storage.createBucket(
-    bucket,
-    options
-  );
-  if (createBucketError) {
-    throw createBucketError;
-  }
+  cachedClient = new S3Client({
+    region: "auto",
+    endpoint: config.endpoint,
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+  cachedClientKey = cacheKey;
+  return cachedClient;
+};
+
+const buildPublicUrl = (baseUrl, objectKey) => {
+  const encodedKey = objectKey
+    .split("/")
+    .map((fragment) => encodeURIComponent(fragment))
+    .join("/");
+  return `${baseUrl}/${encodedKey}`;
 };
 
 export default async function handler(req, res) {
@@ -89,11 +97,12 @@ export default async function handler(req, res) {
     return sendJson(res, 401, { ok: false, error: "Sesion no valida." });
   }
 
-  const config = getSupabaseConfig();
+  const config = getR2Config();
   if (!config.isConfigured) {
     return sendJson(res, 500, {
       ok: false,
-      error: "SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados.",
+      error:
+        "Cloudflare R2 no configurado. Define R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME y R2_PUBLIC_BASE_URL.",
     });
   }
 
@@ -103,7 +112,7 @@ export default async function handler(req, res) {
   } catch (error) {
     const message =
       error instanceof Error && error.message === "request_too_large"
-        ? "La imagen es demasiado grande. Reduce el peso antes de subirla."
+        ? "La solicitud es demasiado grande."
         : "Formato JSON invalido.";
     return sendJson(res, 400, { ok: false, error: message });
   }
@@ -113,18 +122,18 @@ export default async function handler(req, res) {
     return sendJson(res, 400, { ok: false, error: "Carpeta de imagen invalida." });
   }
 
-  let imageBuffer;
-  try {
-    imageBuffer = parseWebPDataUrl(payload.dataUrl);
-  } catch (error) {
+  const contentType =
+    typeof payload.contentType === "string" ? payload.contentType.trim() : "";
+  if (contentType !== IMAGE_CONTENT_TYPE) {
     return sendJson(res, 400, {
       ok: false,
-      error: getErrorMessage(error, "Imagen invalida."),
+      error: "La imagen debe estar convertida a WebP antes de subirla.",
     });
   }
 
+  const bytes = Number(payload.bytes);
   const maxImageBytes = getMaxImageBytes();
-  if (imageBuffer.byteLength > maxImageBytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0 || bytes > maxImageBytes) {
     return sendJson(res, 400, {
       ok: false,
       error: "La imagen WebP supera el limite permitido.",
@@ -132,39 +141,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const supabase = getSupabaseAdminClient(config);
-    await ensurePublicImageBucket(supabase, config.storageBucket, maxImageBytes);
+    const objectKey = `${folder}/${Date.now()}-${randomUUID()}.webp`;
+    const command = new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: objectKey,
+      ContentType: IMAGE_CONTENT_TYPE,
+      CacheControl: IMAGE_CACHE_CONTROL,
+    });
 
-    const storagePath = `${folder}/${Date.now()}-${randomUUID()}.webp`;
-    const { error: uploadError } = await supabase.storage
-      .from(config.storageBucket)
-      .upload(storagePath, imageBuffer, {
-        contentType: "image/webp",
-        cacheControl: String(IMAGE_CACHE_CONTROL_SECONDS),
-        upsert: false,
-      });
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    const { data } = supabase.storage
-      .from(config.storageBucket)
-      .getPublicUrl(storagePath);
+    const uploadUrl = await getSignedUrl(getR2Client(config), command, {
+      expiresIn: SIGNED_UPLOAD_EXPIRES_SECONDS,
+    });
 
     return sendJson(res, 200, {
       ok: true,
-      url: data.publicUrl,
-      path: storagePath,
-      bytes: imageBuffer.byteLength,
+      uploadUrl,
+      url: buildPublicUrl(config.publicBaseUrl, objectKey),
+      path: objectKey,
+      headers: {
+        "Content-Type": IMAGE_CONTENT_TYPE,
+        "Cache-Control": IMAGE_CACHE_CONTROL,
+      },
     });
-  } catch (error) {
+  } catch {
     return sendJson(res, 500, {
       ok: false,
-      error: getErrorMessage(
-        error,
-        "No se pudo subir la imagen a Supabase Storage."
-      ),
+      error: "No se pudo preparar la subida a Cloudflare R2.",
     });
   }
 }
