@@ -36,6 +36,7 @@ import {
   isStoredImageConvertibleToWebP,
 } from "./data/imageCompression";
 import { uploadAdminImage, type AdminImageFolder } from "./data/adminImageUpload";
+import { importRemoteAdminImage } from "./data/remoteImageImport";
 import {
   DEFAULT_BADGE_BACKGROUND_COLOR,
   DEFAULT_BADGE_TEXT_COLOR,
@@ -142,6 +143,18 @@ const pillButtonStyle = (active: boolean) => ({
 const areStringListsEqual = (left: string[], right: string[]) =>
   left.length === right.length && left.every((item, index) => item === right[index]);
 
+const isLegacySupabaseStorageImage = (source: string) => {
+  try {
+    const url = new URL(source.trim());
+    return (
+      url.hostname.endsWith(".supabase.co") &&
+      url.pathname.includes("/storage/v1/object/")
+    );
+  } catch {
+    return false;
+  }
+};
+
 export function AdminPanel({
   products,
   onProductsChange,
@@ -160,6 +173,7 @@ export function AdminPanel({
   const [compressingHeroImageIndex, setCompressingHeroImageIndex] = useState<number | null>(null);
   const [compressingProductImage, setCompressingProductImage] = useState(false);
   const [convertingStoredImages, setConvertingStoredImages] = useState(false);
+  const [migratingLegacyImages, setMigratingLegacyImages] = useState(false);
   const [migrationMessage, setMigrationMessage] = useState<BannerMessage>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const heroBannerSignature = JSON.stringify(getHeroEditorImages(heroContent));
@@ -508,6 +522,131 @@ export function AdminPanel({
     }
   };
 
+  const migrateLegacyImage = async (
+    image: string,
+    folder: AdminImageFolder,
+    stats: ImageConversionStats
+  ) => {
+    const trimmedImage = image.trim();
+    if (!isLegacySupabaseStorageImage(trimmedImage)) {
+      stats.skipped += 1;
+      return image;
+    }
+
+    const imported = await importRemoteAdminImage(trimmedImage, folder);
+    if (!imported.ok || !imported.url) {
+      stats.failed += 1;
+      return image;
+    }
+
+    stats.converted += 1;
+    return imported.url;
+  };
+
+  const migrateLegacyImageList = async (
+    images: string[],
+    folder: AdminImageFolder,
+    stats: ImageConversionStats
+  ) => {
+    const migratedImages: string[] = [];
+    for (const image of images) {
+      migratedImages.push(await migrateLegacyImage(image, folder, stats));
+    }
+    return migratedImages;
+  };
+
+  const handleMigrateLegacyImages = async () => {
+    if (migratingLegacyImages) return;
+
+    setMigratingLegacyImages(true);
+    setMigrationMessage(null);
+
+    const stats: ImageConversionStats = {
+      converted: 0,
+      skipped: 0,
+      failed: 0,
+    };
+
+    try {
+      const currentBannerImages = getHeroEditorImages(heroContent);
+      const nextBannerImages = await migrateLegacyImageList(
+        currentBannerImages,
+        "banners",
+        stats
+      );
+      const nextHeroContent: HeroContent = {
+        ...heroContent,
+        bannerImages: nextBannerImages,
+        bannerImage: nextBannerImages[0] ?? "",
+      };
+
+      const nextProducts: Arrangement[] = [];
+      for (const product of products) {
+        nextProducts.push({
+          ...product,
+          images: await migrateLegacyImageList(product.images, "products", stats),
+        });
+      }
+
+      const heroChanged = !areStringListsEqual(currentBannerImages, nextBannerImages);
+      const productsChanged = JSON.stringify(products) !== JSON.stringify(nextProducts);
+
+      if (!heroChanged && !productsChanged) {
+        setMigrationMessage({
+          type: stats.failed > 0 ? "error" : "success",
+          text:
+            stats.failed > 0
+              ? `No se pudo migrar ninguna imagen. ${stats.failed} URL(es) antiguas no respondieron.`
+              : "No encontre URLs antiguas de Supabase pendientes por migrar.",
+        });
+        return;
+      }
+
+      if (heroChanged) {
+        const heroResult = await onHeroContentChange(nextHeroContent);
+        if (!heroResult.ok) {
+          setMigrationMessage({
+            type: "error",
+            text: heroResult.error ?? "No se pudo guardar el banner migrado.",
+          });
+          return;
+        }
+        setHeroForm(createHeroFormState(nextHeroContent));
+      }
+
+      if (productsChanged) {
+        const productsResult = await onProductsChange(nextProducts);
+        if (!productsResult.ok) {
+          setMigrationMessage({
+            type: "error",
+            text: productsResult.error ?? "No se pudieron guardar los productos migrados.",
+          });
+          return;
+        }
+
+        if (editingId) {
+          const editedProduct = nextProducts.find((product) => product.id === editingId);
+          if (editedProduct) {
+            setForm((prev) => ({
+              ...prev,
+              image: editedProduct.images[0] ?? prev.image,
+            }));
+          }
+        }
+      }
+
+      setMigrationMessage({
+        type: stats.failed > 0 ? "error" : "success",
+        text:
+          stats.failed > 0
+            ? `${stats.converted} imagen(es) migradas a R2. ${stats.failed} no se pudieron descargar; probablemente Supabase bloqueo el egress.`
+            : `${stats.converted} imagen(es) migradas a R2 y guardadas en la base nueva.`,
+      });
+    } finally {
+      setMigratingLegacyImages(false);
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -814,7 +953,7 @@ export function AdminPanel({
               Exporta productos y banners desde este navegador o importa un backup en la base nueva.
             </p>
 
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={handleExportContent}
@@ -853,6 +992,27 @@ export function AdminPanel({
                 onChange={handleImportContent}
                 className="hidden"
               />
+
+              <button
+                type="button"
+                onClick={handleMigrateLegacyImages}
+                disabled={migratingLegacyImages}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
+                style={{
+                  backgroundColor: "#fdf9f6",
+                  color: "#8a5f2f",
+                  border: "1px solid #e8d5c4",
+                  fontWeight: 700,
+                  cursor: migratingLegacyImages ? "wait" : "pointer",
+                  opacity: migratingLegacyImages ? 0.75 : 1,
+                }}
+              >
+                <RefreshCw
+                  size={15}
+                  className={migratingLegacyImages ? "animate-spin" : ""}
+                />
+                {migratingLegacyImages ? "Migrando..." : "Migrar URLs a R2"}
+              </button>
             </div>
 
             {migrationMessage && (
