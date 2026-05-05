@@ -14,6 +14,49 @@ const dataUrlToBlob = async (dataUrl: string) => {
   return response.blob();
 };
 
+const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const withCacheBuster = (url: string, attempt: number) => {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}preview=${Date.now()}-${attempt}`;
+};
+
+const canLoadPublicImage = (url: string) =>
+  new Promise<boolean>((resolve) => {
+    const image = new Image();
+    const timeout = window.setTimeout(() => {
+      image.onload = null;
+      image.onerror = null;
+      resolve(false);
+    }, 5000);
+
+    image.onload = () => {
+      window.clearTimeout(timeout);
+      resolve(true);
+    };
+    image.onerror = () => {
+      window.clearTimeout(timeout);
+      resolve(false);
+    };
+    image.src = url;
+  });
+
+const waitForPublicImage = async (url: string) => {
+  const delays = [0, 350, 750, 1400, 2400];
+
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    if (delays[attempt] > 0) {
+      await delay(delays[attempt]);
+    }
+
+    if (await canLoadPublicImage(withCacheBuster(url, attempt))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export const uploadAdminImage = async (
   dataUrl: string,
   folder: AdminImageFolder
@@ -51,6 +94,15 @@ export const uploadAdminImage = async (
       return {
         ok: false,
         error: "No se pudo subir la imagen a Cloudflare R2.",
+      };
+    }
+
+    const publicImageReady = await waitForPublicImage(payload.url);
+    if (!publicImageReady) {
+      return {
+        ok: false,
+        error:
+          "La imagen se subio, pero la URL publica no carga. Revisa R2_PUBLIC_BASE_URL y que el bucket R2 tenga acceso publico habilitado.",
       };
     }
 
