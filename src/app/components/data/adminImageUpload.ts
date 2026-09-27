@@ -1,28 +1,10 @@
 interface AdminImageUploadResponse {
   ok: boolean;
-  uploadUrl?: string;
   url?: string;
-  path?: string;
-  headers?: Record<string, string>;
   error?: string;
 }
 
 export type AdminImageFolder = "banners" | "products";
-
-const dataUrlToBlob = (dataUrl: string) => {
-  const match = dataUrl.match(/^data:([^;,]+);base64,(.+)$/);
-  if (!match?.[1] || !match[2]) {
-    throw new Error("La imagen convertida no es valida.");
-  }
-
-  const binary = window.atob(match[2]);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return new Blob([bytes], { type: match[1] });
-};
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -104,7 +86,7 @@ const getServiceError = (
   return `${fallback} (codigo ${response.status}).`;
 };
 
-const uploadThroughServer = async (
+export const uploadAdminImage = async (
   dataUrl: string,
   folder: AdminImageFolder
 ): Promise<{ ok: boolean; url?: string; error?: string }> => {
@@ -133,95 +115,14 @@ const uploadThroughServer = async (
     };
   }
 
-  return { ok: true, url: payload.url };
-};
-
-export const uploadAdminImage = async (
-  dataUrl: string,
-  folder: AdminImageFolder
-): Promise<{ ok: boolean; url?: string; error?: string }> => {
-  try {
-    const blob = dataUrlToBlob(dataUrl);
-    let response: Response;
-    try {
-      response = await fetch("/api/admin/images", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          folder,
-          contentType: blob.type,
-          bytes: blob.size,
-        }),
-      });
-    } catch {
-      return {
-        ok: false,
-        error: "No se pudo conectar con el servicio de imagenes.",
-      };
-    }
-
-    const payload = await parseJsonResponse(response);
-
-    if (!response.ok || !payload?.ok || !payload.uploadUrl || !payload.url) {
-      return {
-        ok: false,
-        error: getServiceError(
-          response,
-          payload,
-          "No se pudo preparar la subida de imagen"
-        ),
-      };
-    }
-
-    let uploadResponse: Response;
-    try {
-      uploadResponse = await fetch(payload.uploadUrl, {
-        method: "PUT",
-        headers: payload.headers ?? { "Content-Type": blob.type },
-        body: blob,
-      });
-    } catch {
-      if (await waitForPublicImage(payload.url)) {
-        return { ok: true, url: payload.url };
-      }
-
-      const fallbackUpload = await uploadThroughServer(dataUrl, folder);
-      if (!fallbackUpload.ok || !fallbackUpload.url) return fallbackUpload;
-
-      const fallbackImageReady = await waitForPublicImage(fallbackUpload.url);
-      return fallbackImageReady
-        ? fallbackUpload
-        : {
-            ok: false,
-            error:
-              "La imagen se subio, pero la URL publica no carga. Revisa R2_PUBLIC_BASE_URL y el acceso publico del bucket.",
-          };
-    }
-
-    if (!uploadResponse.ok) {
-      return {
-        ok: false,
-        error: `Cloudflare R2 rechazo la subida (codigo ${uploadResponse.status}).`,
-      };
-    }
-
-    const publicImageReady = await waitForPublicImage(payload.url);
-    if (!publicImageReady) {
-      return {
-        ok: false,
-        error:
-          "La imagen se subio, pero la URL publica no carga. Revisa R2_PUBLIC_BASE_URL y que el bucket R2 tenga acceso publico habilitado.",
-      };
-    }
-
-    return { ok: true, url: payload.url };
-  } catch {
+  const publicImageReady = await waitForPublicImage(payload.url);
+  if (!publicImageReady) {
     return {
       ok: false,
-      error: "No se pudo conectar con el servicio de imagenes.",
+      error:
+        "La imagen se subio, pero la URL publica no carga. Revisa R2_PUBLIC_BASE_URL y el acceso publico del bucket.",
     };
   }
+
+  return { ok: true, url: payload.url };
 };

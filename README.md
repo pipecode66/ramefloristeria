@@ -104,10 +104,8 @@ Despues de guardar variables, fuerza un nuevo deploy.
 
 - Productos y banner: `localStorage` + respaldo en `IndexedDB` para respuesta rapida local
 - Store compartido entre dispositivos: Supabase, via `api/store` y `api/admin/store`
-- Imagenes de productos y banners: Cloudflare R2, via URLs firmadas de `api/admin/images`
+- Imagenes de productos y banners: Cloudflare R2, via `api/admin/images`
 
 ## Imagenes en R2
 
-Para subir imagenes directo a R2 desde el navegador, configura CORS en el bucket con tu dominio de produccion y `http://localhost:5173` si pruebas localmente.
-
-El panel intenta primero la subida directa para reducir transferencia en Vercel. Si el navegador la bloquea por CORS o por un problema de red, usa automaticamente una subida de respaldo mediante `api/admin/images`.
+El panel comprime las imagenes en WebP y las envia a `api/admin/images`, que las guarda en R2 desde el servidor. La subida no depende de la configuracion CORS del bucket.

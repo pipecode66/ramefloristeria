@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { S3Client } from "@aws-sdk/client-s3";
 
 export const DEFAULT_MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-export const SIGNED_UPLOAD_EXPIRES_SECONDS = 60 * 5;
 export const IMAGE_CACHE_CONTROL = "public, max-age=31536000, immutable";
 export const ALLOWED_FOLDERS = new Set(["banners", "products"]);
 export const IMAGE_CONTENT_TYPE = "image/webp";
