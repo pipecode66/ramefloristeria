@@ -109,3 +109,5 @@ Despues de guardar variables, fuerza un nuevo deploy.
 ## Imagenes en R2
 
 Para subir imagenes directo a R2 desde el navegador, configura CORS en el bucket con tu dominio de produccion y `http://localhost:5173` si pruebas localmente.
+
+El panel intenta primero la subida directa para reducir transferencia en Vercel. Si el navegador la bloquea por CORS o por un problema de red, usa automaticamente una subida de respaldo mediante `api/admin/images`.
